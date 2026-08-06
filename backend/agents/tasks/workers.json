@@ -1,0 +1,6 @@
+{
+    "workers": [
+        "worker-01",
+        "worker-02"
+    ]
+}
