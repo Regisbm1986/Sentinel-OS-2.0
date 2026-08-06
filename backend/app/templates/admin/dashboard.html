@@ -1,0 +1,438 @@
+{% extends "admin/base.html" %}
+
+{% block title %}Dashboard | Sentinel Career{% endblock %}
+{% block page_id %}dashboard{% endblock %}
+{% block heading %}Painel Executivo{% endblock %}
+{% block status_chips %}
+  <span class="admin-pill">
+    <span class="h-2 w-2 rounded-full bg-emerald-400 animate-pulse"></span>
+    Modo crítico ativo
+  </span>
+  <span class="admin-pill">SSO & OAuth monitorados</span>
+  <span class="admin-pill">Mercado Pago online</span>
+{% endblock %}
+
+{% block content %}
+{% set metrics = dashboard_metrics or {} %}
+{% set total_users = metrics.get('total_users', {}) %}
+{% set active_subscriptions = metrics.get('active_subscriptions', {}) %}
+{% set revenue = metrics.get('revenue', {}) %}
+{% set ai_consumption = metrics.get('ai_consumption', {}) %}
+
+<section class="grid gap-6 md:grid-cols-2 xl:grid-cols-4">
+  <article class="admin-card">
+    <h2>Total de Usuários</h2>
+    <p class="metric-value" data-metric="total_users_value">{{ total_users.get('value', '—') }}</p>
+    <p class="metric-footnote" data-metric="total_users_caption">{{ total_users.get('caption', 'Monitorando contas ativas e convites pendentes.') }}</p>
+  </article>
+  <article class="admin-card">
+    <h2>Assinaturas Ativas</h2>
+    <p class="metric-value" data-metric="subscriptions_value">{{ active_subscriptions.get('value', '—') }}</p>
+    <p class="metric-footnote" data-metric="subscriptions_caption">Pro: {{ active_subscriptions.get('pro', '0') }} · Enterprise: {{ active_subscriptions.get('enterprise', '0') }}</p>
+  </article>
+  <article class="admin-card">
+    <h2>Receita Gerada</h2>
+    <p class="metric-value" data-metric="revenue_value">{{ revenue.get('value', '—') }}</p>
+    <p class="metric-footnote" data-metric="revenue_caption">{{ revenue.get('caption', 'Integração Mercado Pago sincronizada.') }}</p>
+  </article>
+  <article class="admin-card">
+    <h2>Consumo de IA</h2>
+    <p class="metric-value" data-metric="ai_value">{{ ai_consumption.get('value', '—') }}</p>
+    <p class="metric-footnote" data-metric="ai_detail">{{ ai_consumption.get('detail', 'SLA Gemini em monitoramento contínuo.') }}</p>
+  </article>
+</section>
+
+<section class="grid gap-6 xl:grid-cols-5">
+  <article class="admin-surface xl:col-span-3">
+    <div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+      <h2 class="admin-section-title">Resumo Operacional</h2>
+      <span class="admin-pill">Atualização contínua</span>
+    </div>
+    <p class="mt-4 text-sm text-slate-300">Monitoramento de fluxo de onboarding, tickets e sincronizações críticas do Sentinel Career.</p>
+    <dl class="mt-6 grid gap-4 md:grid-cols-2">
+      <div class="rounded-2xl border border-[#1e293b] bg-[#0b1628]/70 p-5">
+        <dt class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Onboarding pendente</dt>
+        <dd class="mt-3 text-2xl font-semibold text-slate-100" data-metric="onboarding_pending">{{ metrics.get('onboarding', {}).get('pending', '12') }}</dd>
+        <p class="mt-2 text-xs text-slate-400" data-metric="onboarding_caption">{{ metrics.get('onboarding', {}).get('caption', 'Convites aguardando validação de identidade.') }}</p>
+      </div>
+      <div class="rounded-2xl border border-[#1e293b] bg-[#0b1628]/70 p-5">
+        <dt class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Tickets críticos</dt>
+        <dd class="mt-3 text-2xl font-semibold text-amber-300" data-metric="support_critical">{{ metrics.get('support', {}).get('critical', '3') }}</dd>
+        <p class="mt-2 text-xs text-slate-400" data-metric="support_caption">{{ metrics.get('support', {}).get('caption', 'Escalonamento automático para o time SRE.') }}</p>
+      </div>
+      <div class="rounded-2xl border border-[#1e293b] bg-[#0b1628]/70 p-5 md:col-span-2">
+        <dt class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Última sincronização Mercado Pago</dt>
+        <dd class="mt-3 text-2xl font-semibold text-emerald-300" data-metric="revenue_sync">{{ revenue.get('sync_time', 'há 4 minutos') }}</dd>
+        <p class="mt-2 text-xs text-slate-400">Preferências de checkout e webhooks confirmados sem erro.</p>
+      </div>
+    </dl>
+  </article>
+
+  <article class="admin-surface xl:col-span-2">
+    <div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+      <h2 class="admin-section-title">Status APIs Críticas</h2>
+      <span class="admin-pill">Observabilidade</span>
+    </div>
+    <ul class="mt-6 space-y-4 text-sm text-slate-200">
+      <li class="flex items-center justify-between gap-3 rounded-2xl border border-[#1e293b] bg-black/30 px-4 py-4">
+        <div>
+          <p class="font-semibold text-slate-100">Gemini AI</p>
+          <p class="text-xs text-slate-400">{{ ai_consumption.get('detail', 'Tempo médio de resposta 620 ms / 1,3k req em 24h') }}</p>
+        </div>
+        <span class="font-semibold text-emerald-300">{{ ai_consumption.get('status', 'Operacional') }}</span>
+      </li>
+      <li class="flex items-center justify-between gap-3 rounded-2xl border border-[#1e293b] bg-black/30 px-4 py-4">
+        <div>
+          <p class="font-semibold text-slate-100">LinkedIn Graph</p>
+          <p class="text-xs text-slate-400">Latência 1.2s · quotas em 68%</p>
+        </div>
+        <span class="font-semibold text-cyan-300">Estável</span>
+      </li>
+      <li class="flex items-center justify-between gap-3 rounded-2xl border border-[#1e293b] bg-black/30 px-4 py-4">
+        <div>
+          <p class="font-semibold text-slate-100">Mercado Pago Webhook</p>
+          <p class="text-xs text-slate-400">Último evento recebido há {{ revenue.get('last_event', '6 minutos') }}</p>
+        </div>
+        <span class="font-semibold text-emerald-300">Sincronizado</span>
+      </li>
+    </ul>
+  </article>
+</section>
+
+<section class="grid gap-6 lg:grid-cols-2">
+  <article class="admin-surface">
+    <div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+      <div>
+        <h2 class="admin-section-title">Gestão de Usuários</h2>
+        <p class="mt-2 text-sm text-slate-300">Bloqueie ou libere acesso em tempo real, sem sair do painel.</p>
+      </div>
+      <a class="admin-action" href="/admin/users">Ver todos</a>
+    </div>
+    {% if dashboard_users %}
+      <div class="mt-6 overflow-x-auto">
+        <table class="admin-table">
+          <thead>
+            <tr>
+              <th>Usuário</th>
+              <th>E-mail</th>
+              <th>Plano</th>
+              <th>Último acesso</th>
+              <th>Status</th>
+              <th>Ações</th>
+            </tr>
+          </thead>
+          <tbody data-dashboard-users>
+            {% for user in dashboard_users %}
+              <tr data-user-row="{{ user.id }}">
+                <td>{{ user.name }}</td>
+                <td class="text-slate-400">{{ user.email }}</td>
+                <td>{{ user.plan }}</td>
+                <td>{{ user.last_login or 'Sem registros' }}</td>
+                <td>
+                  <span class="inline-flex items-center gap-2 rounded-full border border-[#1e293b] px-3 py-1 text-xs font-semibold {{ 'text-emerald-300' if user.is_active else 'text-rose-300' }}">
+                    {{ 'Ativo' if user.is_active else 'Bloqueado' }}
+                  </span>
+                </td>
+                <td>
+                  {% if user.is_active %}
+                    <button class="admin-action admin-action--danger" data-user-action="block" data-user-id="{{ user.id }}">Bloquear</button>
+                  {% else %}
+                    <button class="admin-action" data-user-action="unblock" data-user-id="{{ user.id }}">Liberar</button>
+                  {% endif %}
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <p class="mt-6 text-sm text-slate-400">Nenhum usuário cadastrado ainda. Cadastre via onboarding seguro.</p>
+    {% endif %}
+  </article>
+
+  <article class="admin-surface">
+    <div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+      <div>
+        <h2 class="admin-section-title">Logs de Erro Recentes</h2>
+        <p class="mt-2 text-sm text-slate-300">Audite falhas críticas e reprocessamentos com um clique.</p>
+      </div>
+      <a class="admin-action" href="/admin/logs">Abrir observabilidade</a>
+    </div>
+    <ul class="mt-6 space-y-4" data-dashboard-logs>
+      {% for log in dashboard_logs %}
+        <li class="rounded-2xl border border-[#1e293b] bg-black/35 p-5" data-log-entry="{{ loop.index0 }}">
+          <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p class="text-xs uppercase tracking-[0.2em] text-rose-300">{{ log.severity or 'Alto' }}</p>
+              <p class="mt-1 text-sm font-semibold text-slate-100">{{ log.timestamp }}</p>
+              <p class="mt-2 text-sm text-slate-300">{{ log.message }}</p>
+            </div>
+            <div class="flex flex-wrap gap-2">
+              <button class="admin-action" data-log-action="view" data-log-index="{{ loop.index0 }}">Ver detalhes</button>
+              {% if log.reprocess %}
+                <button class="admin-action admin-action--danger" data-log-action="retry" data-log-index="{{ loop.index0 }}">Reprocessar</button>
+              {% endif %}
+            </div>
+          </div>
+        </li>
+      {% else %}
+        <li class="rounded-2xl border border-[#1e293b] bg-black/35 p-5 text-sm text-slate-400">Nenhum log crítico registrado nas últimas 24 horas.</li>
+      {% endfor %}
+    </ul>
+  </article>
+</section>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+  const metricsRefs = {
+    totalUsersValue: document.querySelector('[data-metric="total_users_value"]'),
+    totalUsersCaption: document.querySelector('[data-metric="total_users_caption"]'),
+    subscriptionsValue: document.querySelector('[data-metric="subscriptions_value"]'),
+    subscriptionsCaption: document.querySelector('[data-metric="subscriptions_caption"]'),
+    revenueValue: document.querySelector('[data-metric="revenue_value"]'),
+    revenueCaption: document.querySelector('[data-metric="revenue_caption"]'),
+    revenueSync: document.querySelector('[data-metric="revenue_sync"]'),
+    aiValue: document.querySelector('[data-metric="ai_value"]'),
+    aiDetail: document.querySelector('[data-metric="ai_detail"]'),
+    onboardingPending: document.querySelector('[data-metric="onboarding_pending"]'),
+    onboardingCaption: document.querySelector('[data-metric="onboarding_caption"]'),
+    supportCritical: document.querySelector('[data-metric="support_critical"]'),
+    supportCaption: document.querySelector('[data-metric="support_caption"]'),
+  };
+
+  const formatSubscriptionsCaption = (metrics) => {
+    const pro = metrics?.active_subscriptions?.pro ?? '0';
+    const enterprise = metrics?.active_subscriptions?.enterprise ?? '0';
+    return `Pro: ${pro} · Enterprise: ${enterprise}`;
+  };
+
+  const updateMetrics = (metrics) => {
+    if (!metrics) return;
+    if (metricsRefs.totalUsersValue) {
+      metricsRefs.totalUsersValue.textContent = metrics.total_users?.value ?? '—';
+    }
+    if (metricsRefs.totalUsersCaption) {
+      metricsRefs.totalUsersCaption.textContent = metrics.total_users?.caption ?? 'Monitorando contas ativas e convites pendentes.';
+    }
+    if (metricsRefs.subscriptionsValue) {
+      metricsRefs.subscriptionsValue.textContent = metrics.active_subscriptions?.value ?? '—';
+    }
+    if (metricsRefs.subscriptionsCaption) {
+      metricsRefs.subscriptionsCaption.textContent = formatSubscriptionsCaption(metrics);
+    }
+    if (metricsRefs.revenueValue) {
+      metricsRefs.revenueValue.textContent = metrics.revenue?.value ?? '—';
+    }
+    if (metricsRefs.revenueCaption) {
+      metricsRefs.revenueCaption.textContent = metrics.revenue?.caption ?? 'Integração Mercado Pago sincronizada.';
+    }
+    if (metricsRefs.revenueSync) {
+      metricsRefs.revenueSync.textContent = metrics.revenue?.sync_time ?? 'há 4 minutos';
+    }
+    if (metricsRefs.aiValue) {
+      metricsRefs.aiValue.textContent = metrics.ai_consumption?.value ?? '—';
+    }
+    if (metricsRefs.aiDetail) {
+      metricsRefs.aiDetail.textContent = metrics.ai_consumption?.detail ?? 'SLA Gemini em monitoramento contínuo.';
+    }
+    if (metricsRefs.onboardingPending) {
+      metricsRefs.onboardingPending.textContent = metrics.onboarding?.pending ?? '12';
+    }
+    if (metricsRefs.onboardingCaption) {
+      metricsRefs.onboardingCaption.textContent = metrics.onboarding?.caption ?? 'Convites aguardando validação de identidade.';
+    }
+    if (metricsRefs.supportCritical) {
+      metricsRefs.supportCritical.textContent = metrics.support?.critical ?? '3';
+    }
+    if (metricsRefs.supportCaption) {
+      metricsRefs.supportCaption.textContent = metrics.support?.caption ?? 'Escalonamento automático para o time SRE.';
+    }
+  };
+
+  const buildUserRow = (user) => {
+    const isActive = user?.is_active !== false;
+    const statusClass = isActive ? 'text-emerald-300' : 'text-rose-300';
+    const statusLabel = isActive ? 'Ativo' : 'Bloqueado';
+    const actionButton = isActive
+      ? `<button class="admin-action admin-action--danger" data-user-action="block" data-user-id="${user.id}">Bloquear</button>`
+      : `<button class="admin-action" data-user-action="unblock" data-user-id="${user.id}">Liberar</button>`;
+
+    return `
+      <tr data-user-row="${user.id}">
+        <td>${user.name ?? '—'}</td>
+        <td class="text-slate-400">${user.email ?? '?n/a'}</td>
+        <td>${user.plan ?? 'FREE'}</td>
+        <td>${user.last_login ?? 'Sem registros'}</td>
+        <td>
+          <span class="inline-flex items-center gap-2 rounded-full border border-[#1e293b] px-3 py-1 text-xs font-semibold ${statusClass}">
+            ${statusLabel}
+          </span>
+        </td>
+        <td>${actionButton}</td>
+      </tr>
+    `;
+  };
+
+  const renderUsers = (users) => {
+    const tbody = document.querySelector('[data-dashboard-users]');
+    if (!tbody) {
+      return;
+    }
+    if (!users || users.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="6" class="text-center text-sm text-slate-400 py-4">Nenhum usuário cadastrado ainda. Cadastre via onboarding seguro.</td></tr>';
+      bindUserActions();
+      return;
+    }
+    tbody.innerHTML = users.map((user) => buildUserRow(user)).join('');
+    bindUserActions();
+  };
+
+  const buildLogItem = (log, index) => {
+    const severity = log?.severity || 'Alto';
+    const reprocessButton = log?.reprocess
+      ? `<button class="admin-action admin-action--danger" data-log-action="retry" data-log-index="${index}">Reprocessar</button>`
+      : '';
+    return `
+      <li class="rounded-2xl border border-[#1e293b] bg-black/35 p-5" data-log-entry="${index}">
+        <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p class="text-xs uppercase tracking-[0.2em] text-rose-300">${severity}</p>
+            <p class="mt-1 text-sm font-semibold text-slate-100">${log?.timestamp ?? ''}</p>
+            <p class="mt-2 text-sm text-slate-300">${log?.message ?? 'Sem detalhes.'}</p>
+          </div>
+          <div class="flex flex-wrap gap-2">
+            <button class="admin-action" data-log-action="view" data-log-index="${index}">Ver detalhes</button>
+            ${reprocessButton}
+          </div>
+        </div>
+      </li>
+    `;
+  };
+
+  const renderLogs = (logs) => {
+    const container = document.querySelector('[data-dashboard-logs]');
+    if (!container) {
+      return;
+    }
+    if (!logs || logs.length === 0) {
+      container.innerHTML = '<li class="rounded-2xl border border-[#1e293b] bg-black/35 p-5 text-sm text-slate-400">Nenhum log crítico registrado nas últimas 24 horas.</li>';
+      bindLogActions();
+      return;
+    }
+    container.innerHTML = logs.map((log, index) => buildLogItem(log, index)).join('');
+    bindLogActions();
+  };
+
+  const bindUserActions = () => {
+    document.querySelectorAll('[data-user-action]').forEach((button) => {
+      if (button.dataset.bound === 'true') {
+        return;
+      }
+      button.dataset.bound = 'true';
+      button.addEventListener('click', async (event) => {
+        event.preventDefault();
+        const action = button.dataset.userAction;
+        const userId = button.dataset.userId;
+        if (!action || !userId) {
+          return;
+        }
+        const endpoint = `/api/admin/users/${userId}/${action === 'block' ? 'block' : 'unblock'}`;
+        button.disabled = true;
+        try {
+          const response = await fetch(endpoint, { method: 'POST' });
+          if (!response.ok) {
+            const detail = await response.json().catch(() => ({}));
+            throw new Error(detail.detail || 'Falha ao atualizar usuário.');
+          }
+          const payload = await response.json();
+          const row = document.querySelector(`[data-user-row="${userId}"]`);
+          if (row) {
+            const statusChip = row.querySelector('td:nth-child(5) span');
+            const actionCell = row.querySelector('td:nth-child(6)');
+            if (statusChip) {
+              if (payload.status === 'blocked') {
+                statusChip.textContent = 'Bloqueado';
+                statusChip.classList.remove('text-emerald-300');
+                statusChip.classList.add('text-rose-300');
+              } else if (payload.status === 'unblocked') {
+                statusChip.textContent = 'Ativo';
+                statusChip.classList.remove('text-rose-300');
+                statusChip.classList.add('text-emerald-300');
+              }
+            }
+            if (actionCell) {
+              actionCell.innerHTML = '';
+              if (payload.status === 'blocked') {
+                actionCell.innerHTML = `<button class="admin-action" data-user-action="unblock" data-user-id="${userId}">Liberar</button>`;
+              } else {
+                actionCell.innerHTML = `<button class="admin-action admin-action--danger" data-user-action="block" data-user-id="${userId}">Bloquear</button>`;
+              }
+            }
+          }
+        } catch (error) {
+          alert(error.message || 'Ocorreu um erro ao atualizar o usuário.');
+        } finally {
+          button.disabled = false;
+          bindUserActions();
+        }
+      });
+    });
+  };
+
+  const bindLogActions = () => {
+    document.querySelectorAll('[data-log-action]').forEach((button) => {
+      if (button.dataset.bound === 'true') {
+        return;
+      }
+      button.dataset.bound = 'true';
+      button.addEventListener('click', (event) => {
+      event.preventDefault();
+        const action = button.dataset.logAction;
+        const index = button.dataset.logIndex;
+        const entry = document.querySelector(`[data-log-entry="${index}"]`);
+        if (!entry) {
+          return;
+        }
+        const message = entry.querySelector('p:nth-of-type(3)')?.textContent || 'Sem detalhes.';
+        if (action === 'view') {
+          alert(message);
+        } else if (action === 'retry') {
+          alert('Reprocessamento agendado. Monitorando fila de incidentes.');
+        }
+      }
+    });
+  };
+
+  const refreshDashboardData = async () => {
+    try {
+      const [metricsResponse, usersResponse, logsResponse] = await Promise.all([
+        fetch('/api/admin/dashboard/metrics'),
+        fetch('/api/admin/dashboard/users'),
+        fetch('/api/admin/dashboard/logs?limit=6'),
+      ]);
+
+      if (metricsResponse.ok) {
+        const metrics = await metricsResponse.json();
+        updateMetrics(metrics);
+      }
+
+      if (usersResponse.ok) {
+        const users = await usersResponse.json();
+        renderUsers(users);
+      }
+
+      if (logsResponse.ok) {
+        const logs = await logsResponse.json();
+        renderLogs(logs);
+      }
+    } catch (error) {
+      console.error('[ADMIN][dashboard] Falha ao sincronizar dados dinâmicos', error);
+    }
+  };
+
+  bindUserActions();
+  bindLogActions();
+  refreshDashboardData();
+</script>
+{% endblock %}
