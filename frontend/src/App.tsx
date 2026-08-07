@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react";
+import type { ReactNode } from "react";
+import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { Briefcase, FileText, Linkedin, FolderGit2, Cpu, Sparkles, ChevronRight, AlertTriangle, ExternalLink } from "lucide-react";
 import Header from "./components/Header";
 import PlanSelector from "./components/PlanSelector";
@@ -8,6 +10,7 @@ import JobSearch from "./components/JobSearch";
 import AutoApplyPipeline from "./components/AutoApplyPipeline";
 import DashboardATS from "./components/DashboardATS";
 import { Job, OptimizationReport, LinkedInAnalysis, Application, PlanType, LogEntry } from "./types";
+import LoginPage from "./components/LoginPage";
 
 const sentinelBanner = "/static/images/SentinelAI.png";
 
@@ -20,7 +23,7 @@ const normalizePlanFromServer = (value: unknown): PlanType | null => {
   return null;
 };
 
-export default function App() {
+function DashboardApp() {
   // --- Persistent State Hooks ---
   const [currentPlan, setPlanState] = useState<PlanType>(() => {
     const saved = localStorage.getItem("sentinel_plan");
@@ -703,3 +706,80 @@ export default function App() {
     </div>
   );
 }
+
+function ProtectedRoute({ children }: { children: ReactNode }): JSX.Element {
+  const location = useLocation();
+  const [status, setStatus] = useState<"loading" | "authenticated" | "unauthenticated">("loading");
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const verifySession = async () => {
+      try {
+        const response = await fetch("/api/auth/session", { credentials: "include" });
+        if (cancelled) {
+          return;
+        }
+
+        if (response.ok) {
+          setStatus("authenticated");
+          return;
+        }
+
+        if (response.status === 401 || response.status === 403) {
+          setStatus("unauthenticated");
+          return;
+        }
+
+        setStatus("unauthenticated");
+      } catch (err) {
+        if (!cancelled) {
+          setStatus("unauthenticated");
+        }
+      }
+    };
+
+    verifySession();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [location.pathname, location.search]);
+
+  if (status === "loading") {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-950 text-slate-200">
+        <p className="text-sm tracking-wide text-slate-400">Validando credenciais seguras...</p>
+      </div>
+    );
+  }
+
+  if (status === "unauthenticated") {
+    const target = `${location.pathname}${location.search || ""}${location.hash || ""}` || "/dashboard";
+    const encodedTarget = encodeURIComponent(target);
+    return <Navigate to={`/login?next=${encodedTarget}`} replace />;
+  }
+
+  return <>{children}</>;
+}
+
+function App(): JSX.Element {
+  return (
+    <Routes>
+      <Route path="/" element={<Navigate to="/login" replace />} />
+      <Route path="/login" element={<LoginPage />} />
+      <Route
+        path="/dashboard"
+        element={
+          <ProtectedRoute>
+            <DashboardApp />
+          </ProtectedRoute>
+        }
+      />
+      <Route path="/dashboard/*" element={<Navigate to="/dashboard" replace />} />
+      <Route path="*" element={<Navigate to="/login" replace />} />
+    </Routes>
+  );
+}
+
+export default App;
