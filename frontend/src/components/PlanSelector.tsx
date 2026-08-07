@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { Zap, ShieldCheck, Check, Sparkles, AlertCircle } from "lucide-react";
 import { PlanType } from "../types";
+import { apiFetch } from "../lib/apiClient";
 
 interface PlanSelectorProps {
   currentPlan: PlanType;
@@ -25,7 +26,7 @@ export default function PlanSelector({ currentPlan, setPlan, autoAppliesUsed, au
 
     try {
       setProcessingPlan(planId);
-      const response = await fetch("/api/payments/checkout", {
+      const response = await apiFetch("/api/payments/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ plan_id: planId }),

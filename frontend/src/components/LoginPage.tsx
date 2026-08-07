@@ -1,6 +1,7 @@
 import {FormEvent, useMemo, useState} from 'react';
 import type {CSSProperties} from 'react';
 import {useLocation, useNavigate} from 'react-router-dom';
+import {apiFetch} from '../lib/apiClient';
 
 const pageStyle: CSSProperties = {
   minHeight: '100vh',
@@ -170,7 +171,7 @@ export default function LoginPage(): JSX.Element {
     setIsSubmitting(true);
 
     try {
-      const response = await fetch('/api/auth/login', {
+      const response = await apiFetch('/api/auth/login', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         credentials: 'include',
@@ -205,7 +206,7 @@ export default function LoginPage(): JSX.Element {
     const query = nextPath ? `?next=${encodeURIComponent(nextPath)}` : '';
 
     try {
-      const response = await fetch(`/api/auth/${provider}/login${query}`, {credentials: 'include'});
+      const response = await apiFetch(`/api/auth/${provider}/login${query}`, {credentials: 'include'});
       if (!response.ok) {
         throw new Error('Falha ao iniciar autenticação social.');
       }

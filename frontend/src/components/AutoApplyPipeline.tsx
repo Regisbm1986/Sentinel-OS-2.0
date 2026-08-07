@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Cpu, CheckCircle2, Circle, Loader2, Play, AlertTriangle, Copy, Check, ExternalLink, Terminal, Shield } from "lucide-react";
 import { Job, PlanType } from "../types";
+import { apiFetch } from "../lib/apiClient";
 
 interface AutoApplyPipelineProps {
   currentPlan: PlanType;
@@ -52,7 +53,7 @@ export default function AutoApplyPipeline({
       const fetchManualAssets = async () => {
         setIsGeneratingManualAssets(true);
         try {
-          const response = await fetch("/api/gemini/generate-apply-assets", {
+          const response = await apiFetch("/api/gemini/generate-apply-assets", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({

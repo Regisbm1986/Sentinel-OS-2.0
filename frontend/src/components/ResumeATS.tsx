@@ -1,6 +1,7 @@
 import React, { useRef, useState } from "react";
 import { FileText, Cpu, AlertCircle, CheckCircle, Search, Copy, Check, Sparkles } from "lucide-react";
 import { OptimizationReport, PlanType } from "../types";
+import { apiFetch } from "../lib/apiClient";
 
 const MAX_UPLOAD_SIZE_BYTES = 2_000_000;
 
@@ -18,7 +19,7 @@ async function requestResumeParsing(file: File): Promise<string> {
   const formData = new FormData();
   formData.append("file", file);
 
-  const response = await fetch("/api/resume/parse", {
+  const response = await apiFetch("/api/resume/parse", {
     method: "POST",
     body: formData,
   });

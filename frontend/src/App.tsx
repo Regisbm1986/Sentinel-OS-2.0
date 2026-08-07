@@ -11,6 +11,7 @@ import AutoApplyPipeline from "./components/AutoApplyPipeline";
 import DashboardATS from "./components/DashboardATS";
 import { Job, OptimizationReport, LinkedInAnalysis, Application, PlanType, LogEntry } from "./types";
 import LoginPage from "./components/LoginPage";
+import { apiFetch } from "./lib/apiClient";
 
 const sentinelBanner = "/static/images/SentinelAI.png";
 
@@ -156,7 +157,7 @@ function DashboardApp() {
 
   const syncSession = useCallback(async () => {
     try {
-      const response = await fetch("/api/auth/session");
+      const response = await apiFetch("/api/auth/session");
       if (!response.ok) {
         return;
       }
@@ -242,7 +243,7 @@ function DashboardApp() {
   useEffect(() => {
     const checkStatus = async () => {
       try {
-        const response = await fetch("/api/gemini/status");
+        const response = await apiFetch("/api/gemini/status");
         const data = await response.json();
         setGeminiConfigured(data.configured);
       } catch (err) {
@@ -278,7 +279,7 @@ function DashboardApp() {
     addLog("info", `Iniciando análise profunda de currículo para vaga de: ${targetRole}`);
 
     try {
-      const response = await fetch("/api/gemini/optimize-cv", {
+      const response = await apiFetch("/api/gemini/optimize-cv", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ resumeText, targetRole }),
@@ -307,7 +308,7 @@ function DashboardApp() {
 
     try {
       const sanitizedUrl = linkedinUrl.trim();
-      const response = await fetch("/api/gemini/analyze-linkedin", {
+      const response = await apiFetch("/api/gemini/analyze-linkedin", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -333,7 +334,7 @@ function DashboardApp() {
     addLog("info", `Buscador de vagas varrendo ecossistemas parceiros por: "${targetRole}"`);
 
     try {
-      const response = await fetch("/api/gemini/search-jobs", {
+      const response = await apiFetch("/api/gemini/search-jobs", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ targetRole, resumeText }),
@@ -359,7 +360,7 @@ function DashboardApp() {
       }
 
       try {
-        const response = await fetch("/api/gemini/auto-apply/validate", {
+        const response = await apiFetch("/api/gemini/auto-apply/validate", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -410,7 +411,7 @@ function DashboardApp() {
     let registerStatus: any = null;
     if (selectedJob.applicationType === "auto") {
       try {
-        const response = await fetch("/api/gemini/auto-apply/register", {
+        const response = await apiFetch("/api/gemini/auto-apply/register", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -716,7 +717,7 @@ function ProtectedRoute({ children }: { children: ReactNode }): JSX.Element {
 
     const verifySession = async () => {
       try {
-        const response = await fetch("/api/auth/session", { credentials: "include" });
+        const response = await apiFetch("/api/auth/session", { credentials: "include" });
         if (cancelled) {
           return;
         }
