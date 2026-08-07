@@ -1,9 +1,9 @@
 {
-  "navigationFallback": {
-    "rewrite": "/index.html",
-    "exclude": ["/images/*.{png,jpg,gif}", "/css/*", "/js/*", "/career/*"]
-  },
   "routes": [
+    {
+      "route": "/career",
+      "rewrite": "/career/index.html"
+    },
     {
       "route": "/career/*",
       "rewrite": "/career/index.html"
