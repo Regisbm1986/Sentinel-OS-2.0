@@ -1,1 +1,0 @@
-"""Sentinel OS product package."""

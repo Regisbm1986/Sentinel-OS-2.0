@@ -1,1 +1,0 @@
-# Placeholder para integrações com Stripe, Mercado Pago, PIX e Asaas

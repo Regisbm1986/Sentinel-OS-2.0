@@ -1,1 +1,0 @@
-"""Sentinel Career product package."""

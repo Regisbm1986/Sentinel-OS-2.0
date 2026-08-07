@@ -1,1 +1,0 @@
-"""Sentinel OS monorepo package."""
