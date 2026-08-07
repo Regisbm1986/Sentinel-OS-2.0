@@ -518,9 +518,9 @@ async def resume_parse(file: UploadFile = File(...)) -> dict[str, str]:
     return {"text": extracted}
 
 
-@app.get("/", response_class=HTMLResponse)
-async def landing_home(request: Request) -> HTMLResponse:
-    return _render_template(request, "landing/index.html")
+@app.get("/")
+async def landing_home() -> dict[str, str]:
+    return {"status": "Sentinel OS API Online", "version": "1.0"}
 
 
 @app.get("/pricing", response_class=HTMLResponse)
