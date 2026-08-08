@@ -2,6 +2,7 @@ import {FormEvent, useMemo, useState} from 'react';
 import type {CSSProperties} from 'react';
 import {useLocation, useNavigate} from 'react-router-dom';
 import {apiFetch} from '../lib/apiClient';
+import logoCareerHorizontal from '../assets/images/logo-career-horizontal.png';
 
 const pageStyle: CSSProperties = {
   minHeight: '100vh',
@@ -255,7 +256,7 @@ export default function LoginPage(): JSX.Element {
       <div style={shellStyle}>
         <section style={cardStyle}>
           <div style={brandBadgeStyle}>
-            <img src="/static/images/logo-career-horizontal.png" alt="Sentinel Career" style={{height: '60px', width: 'auto'}} />
+            <img src={logoCareerHorizontal} alt="Sentinel Career" style={{height: '60px', width: 'auto'}} />
             <span>SENTINEL CAREER · Carreira potencializada por IA</span>
           </div>
 
@@ -306,7 +307,7 @@ export default function LoginPage(): JSX.Element {
                 value={email}
                 onChange={(event) => setEmail(event.target.value)}
                 style={inputStyle}
-                placeholder="voce@sentinel.ai"
+                placeholder="contato@sentinel-os.ia.br"
               />
             </label>
 
@@ -355,7 +356,7 @@ export default function LoginPage(): JSX.Element {
           </div>
 
           <p style={{margin: 0, color: 'rgba(148, 163, 184, 0.72)', fontSize: '0.85rem'}}>
-            Precisa de ajuda? <a href="mailto:support@sentinel.ai" style={{color: '#4aa3ff', fontWeight: 600, textDecoration: 'none'}}>contate o suporte especializado</a>.
+            Precisa de ajuda? <a href="mailto:contato@sentinel-os.ia.br" style={{color: '#4aa3ff', fontWeight: 600, textDecoration: 'none'}}>contate o suporte especializado</a>.
           </p>
         </aside>
       </div>

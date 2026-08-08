@@ -1,6 +1,7 @@
 import React from "react";
 import { Globe, CheckCircle2, Cpu, Cloud } from "lucide-react";
 import { PlanType } from "../types";
+import logoCareerIcon from "../assets/images/logo-career-icon.png";
 
 interface HeaderProps {
   currentPlan: PlanType;
@@ -20,7 +21,7 @@ export default function Header({ currentPlan, setPlan, geminiConfigured, userEma
               <div className="absolute -inset-1 bg-cyan-500 rounded-lg blur opacity-30 animate-pulse"></div>
               <div className="relative bg-slate-900 border border-cyan-400 p-1.5 rounded-lg">
                 <img
-                  src="/static/images/logo-career-icon.png"
+                  src={logoCareerIcon}
                   alt="Sentinel Career"
                   className="h-7 w-7"
                   loading="lazy"
@@ -88,7 +89,7 @@ export default function Header({ currentPlan, setPlan, geminiConfigured, userEma
           <div className="flex items-center space-x-3">
             <div className="text-right">
               <p className="text-xs font-semibold text-slate-200 truncate max-w-[150px]">
-                {userEmail || "usuario@sentinel.ia"}
+                {userEmail || "contato@sentinel-os.ia.br"}
               </p>
               <p className="text-[10px] font-mono text-cyan-400 uppercase tracking-widest">
                 PLANO {currentPlan}

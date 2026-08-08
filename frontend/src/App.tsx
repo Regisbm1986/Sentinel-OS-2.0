@@ -11,6 +11,7 @@ import AutoApplyPipeline from "./components/AutoApplyPipeline";
 import DashboardATS from "./components/DashboardATS";
 import { Job, OptimizationReport, LinkedInAnalysis, Application, PlanType, LogEntry } from "./types";
 import LoginPage from "./components/LoginPage";
+import RegisterPage from "./components/RegisterPage";
 import { apiFetch } from "./lib/apiClient";
 
 const sentinelBanner = "/static/images/SentinelAI.png";
@@ -769,6 +770,7 @@ function App(): JSX.Element {
     <Routes>
       <Route path="/" element={<Navigate to="/login" replace />} />
       <Route path="/login" element={<LoginPage />} />
+      <Route path="/register" element={<RegisterPage />} />
       <Route
         path="/dashboard"
         element={
