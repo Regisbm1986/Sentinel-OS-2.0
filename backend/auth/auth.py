@@ -1,6 +1,7 @@
 import hashlib
-import uuid
 from datetime import datetime, timezone
+
+from psycopg.errors import UniqueViolation
 
 from products.sentinel_career.backend.auth.models import User, UserPlan
 from products.sentinel_career.backend.auth.exceptions import (
@@ -13,9 +14,13 @@ from products.sentinel_career.backend.auth.jwt_manager import (
     create_access_token,
     create_refresh_token,
 )
+from products.sentinel_career.backend.database.user_repository import (
+    create_user,
+    get_user_by_email,
+    get_user_by_id,
+    update_last_login,
+)
 
-# Simulação de "banco de dados"
-USERS_DB = {}
 SESSIONS = {}
 REFRESH_TOKENS = {}
 
@@ -26,22 +31,33 @@ def hash_password(password: str) -> str:
 def verify_password(plain: str, hashed: str) -> bool:
     return hash_password(plain) == hashed
 
+def _normalize_plan(plan: str) -> str:
+    plan_upper = (plan or "FREE").upper()
+    try:
+        return UserPlan(plan_upper).value
+    except ValueError:
+        return UserPlan.FREE.value
+
+
 def register_user(name, email, password, plan='FREE'):
     validate_email(email)
-    if email in USERS_DB:
-        raise UserExistsError('User already exists')
-    uid = str(uuid.uuid4())
-    user = User(uid, name, email, hash_password(password), plan)
-    USERS_DB[email] = user
+    normalized_plan = _normalize_plan(plan)
+    password_hash = hash_password(password)
+    try:
+        user = create_user(name, email, password_hash, normalized_plan)
+    except UniqueViolation as exc:
+        raise UserExistsError('User already exists') from exc
     return user
 
 def login_user(email, password):
-    user = USERS_DB.get(email)
+    user = get_user_by_email(email)
     if not user or not verify_password(password, user.password_hash):
         raise InvalidCredentials('Invalid credentials')
     if not user.is_active:
         raise InactiveUserError('User not active')
-    user.last_login = datetime.now(timezone.utc).isoformat()
+    now = datetime.now(timezone.utc).isoformat()
+    update_last_login(user.id)
+    user.last_login = now
     SESSIONS[user.id] = True
     token = create_access_token(user)
     refresh = create_refresh_token(user)
@@ -55,11 +71,7 @@ def refresh_token(refresh):
     uid = REFRESH_TOKENS.get(refresh)
     if not uid:
         raise InvalidCredentials('Invalid refresh token')
-    user = None
-    for u in USERS_DB.values():
-        if u.id == uid:
-            user = u
-            break
+    user = get_user_by_id(uid)
     if not user:
         raise InvalidCredentials('User not found')
     new_token = create_access_token(user)

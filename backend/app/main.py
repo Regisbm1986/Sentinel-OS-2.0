@@ -11,6 +11,7 @@ from zipfile import ZipFile, BadZipFile
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Request, Form, Response, UploadFile, File
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -24,11 +25,16 @@ from products.sentinel_career.backend.app.services.azure_ai import (
     generate_cv_analysis,
     search_jobs_suggestions,
 )
-from products.sentinel_career.backend.auth.auth import login_user, USERS_DB, register_user
+from products.sentinel_career.backend.auth.auth import login_user, register_user
 from products.sentinel_career.backend.auth.exceptions import (
     InvalidCredentials,
     InactiveUserError,
     UserExistsError,
+)
+from products.sentinel_career.backend.database.user_repository import (
+    get_user_by_email,
+    get_user_by_id,
+    list_users,
 )
 
 try:  # Mercado Pago SDK should be available in runtime environment
@@ -173,11 +179,31 @@ AUTO_APPLY_USAGE: Dict[str, int] = {}
 PUBLIC_PATHS = {"/login", "/health", "/api/checkout/mercadopago/webhook", "/politica-de-privacidade"}
 PUBLIC_PATH_PREFIXES = ("/static", "/api/auth", "/assets")
 
+_DEFAULT_ALLOWED_ORIGINS = [
+    "https://www.career.sentinel-os.ia.br",
+    "https://career.sentinel-os.ia.br",
+]
+
+def _load_allowed_origins() -> List[str]:
+    raw = os.getenv("SENTINEL_ALLOWED_ORIGINS", "")
+    parsed = [origin.strip() for origin in raw.split(",") if origin.strip()]
+    return parsed or _DEFAULT_ALLOWED_ORIGINS
+
+CORS_ALLOWED_ORIGINS = _load_allowed_origins()
+
 app = FastAPI(title="Sentinel Career API")
 app.mount(
     "/static",
     StaticFiles(directory=str(STATIC_DIR)),
     name="static",
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=CORS_ALLOWED_ORIGINS,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 
@@ -207,7 +233,7 @@ __all__ = ["app"]
 
 
 def _ensure_default_admin_user() -> None:
-    if DEFAULT_ADMIN_EMAIL in USERS_DB:
+    if get_user_by_email(DEFAULT_ADMIN_EMAIL):
         return
     try:
         register_user(
@@ -330,7 +356,9 @@ def _apply_auto_apply_usage(user_id: str, plan_value: str, *, commit: bool, appl
 
 
 def _get_default_admin_user_id() -> Optional[str]:
-    admin_user = USERS_DB.get(DEFAULT_ADMIN_EMAIL)
+    admin_user = get_user_by_email(DEFAULT_ADMIN_EMAIL)
+    if admin_user is None:
+        return None
     return getattr(admin_user, "id", None)
 
 
@@ -364,6 +392,14 @@ def _landing_template_exists(slug: str) -> bool:
 class AuthLoginRequest(BaseModel):
     email: str
     password: str
+    next_url: Optional[str] = None
+
+
+class AuthRegisterRequest(BaseModel):
+    name: str
+    email: str
+    password: str
+    plan: Optional[str] = None
     next_url: Optional[str] = None
 
 
@@ -625,6 +661,57 @@ async def login_email(
 
     user = auth_result["user"]
     return _create_authenticated_redirect(sanitized_next or "/dashboard", user.id)
+
+
+@app.post("/api/auth/register", status_code=201)
+async def api_auth_register(payload: AuthRegisterRequest) -> JSONResponse:
+    normalized_email = payload.email.strip()
+    sanitized_next = _sanitize_next(payload.next_url)
+    normalized_name = payload.name.strip()
+
+    if not normalized_name:
+        raise HTTPException(status_code=422, detail="Informe o nome completo.")
+    if not _is_valid_email(normalized_email):
+        raise HTTPException(status_code=422, detail="Informe um e-mail corporativo válido.")
+    if len(payload.password.strip()) < 8:
+        raise HTTPException(status_code=422, detail="Defina uma senha com pelo menos 8 caracteres.")
+
+    selected_plan = (payload.plan or "FREE").strip().upper() or "FREE"
+    allowed_plans = {"FREE", "PRO", "PREMIUM", "ENTERPRISE", "MASTER", "ADMIN"}
+    if selected_plan not in allowed_plans:
+        selected_plan = "FREE"
+    if selected_plan != "FREE":
+        selected_plan = "FREE"
+
+    try:
+        user = register_user(normalized_name, normalized_email, payload.password, plan=selected_plan)
+    except UserExistsError as exc:
+        raise HTTPException(status_code=409, detail="Usuário já cadastrado. Faça login para continuar.") from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    try:
+        auth_result = login_user(normalized_email, payload.password)
+    except InvalidCredentials:
+        auth_result = {"user": user}
+
+    redirect_to = sanitized_next or "/dashboard"
+    response_payload: dict[str, Any] = {
+        "redirect_to": redirect_to,
+        "plan": _map_plan_to_frontend(getattr(user, "plan", selected_plan)),
+    }
+
+    access_token = auth_result.get("access_token") if isinstance(auth_result, dict) else None
+    refresh_token = auth_result.get("refresh_token") if isinstance(auth_result, dict) else None
+    if access_token:
+        response_payload["access_token"] = access_token
+    if refresh_token:
+        response_payload["refresh_token"] = refresh_token
+
+    response = JSONResponse(response_payload, status_code=201)
+    session_owner = auth_result.get("user") if isinstance(auth_result, dict) else user
+    _issue_session_cookie(response, getattr(session_owner, "id", user.id))
+    return response
 
 
 @app.post("/api/auth/login")
@@ -1113,7 +1200,7 @@ def _load_recent_error_logs(limit: int = 4) -> List[dict[str, Any]]:
 
 
 def _build_dashboard_context() -> dict[str, Any]:
-    users = list(USERS_DB.values())
+    users = list(list_users())
     active_users = [user for user in users if getattr(user, "is_active", True)]
     total_users = len(users)
     blocked_users = total_users - len(active_users)
@@ -1345,10 +1432,7 @@ def _create_authenticated_redirect(target: str, user_id: Optional[str] = None) -
 
 
 def _get_user_by_id(user_id: str):
-    for candidate in USERS_DB.values():
-        if candidate.id == user_id:
-            return candidate
-    return None
+    return get_user_by_id(user_id)
 
 
 def _is_session_valid(token: str) -> bool:
