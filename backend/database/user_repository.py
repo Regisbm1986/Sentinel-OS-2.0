@@ -167,4 +167,4 @@ def ensure_admin_exists(name: str, email: str, password_hash: str, plan: str) ->
         return create_user(name, email, password_hash, plan)
     except UniqueViolation:
         return get_user_by_email(email)  # pragma: no cover
-*** End of File
+

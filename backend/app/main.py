@@ -555,7 +555,9 @@ async def resume_parse(file: UploadFile = File(...)) -> dict[str, str]:
 
 
 @app.get("/")
-async def landing_home() -> dict[str, str]:
+async def landing_home(request: Request) -> Any:
+    if _is_authenticated(request):
+        return RedirectResponse(url="/dashboard", status_code=303)
     return {"status": "Sentinel OS API Online", "version": "1.0"}
 
 
