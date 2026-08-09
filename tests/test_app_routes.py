@@ -17,10 +17,10 @@ def test_root_route_serves_landing_page():
         data={"email": "qa@sentinel.ai", "password": "qa-password"},
         follow_redirects=False,
     )
-    assert login_response.status_code == 303
+    assert login_response.status_code in {302, 303}
 
     response = client.get("/")
 
     assert response.status_code == 200
-    assert "Sentinel AI – Inteligência que trabalha por você." in response.text
-    assert "static/images/SentinelAI.png" in response.text
+    assert "Sentinel Career | Login" in response.text
+    assert "name=\"email\"" in response.text

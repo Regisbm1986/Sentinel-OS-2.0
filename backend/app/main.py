@@ -1,6 +1,7 @@
 import os
 import random
 import secrets
+import time
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Set
@@ -166,6 +167,38 @@ SESSION_MAX_AGE_SECONDS = 60 * 60 * 12
 ACTIVE_SESSIONS: Set[str] = set()
 SESSION_OWNERS: Dict[str, str] = {}
 
+
+def _resolve_max_upload_size() -> int:
+    raw = os.getenv("SENTINEL_RESUME_MAX_BYTES")
+    if raw is None:
+        return 5 * 1024 * 1024
+    try:
+        parsed = int(raw)
+    except ValueError:
+        return 5 * 1024 * 1024
+    return max(parsed, 256_000)
+
+
+MAX_RESUME_UPLOAD_SIZE_BYTES = _resolve_max_upload_size()
+ALLOWED_TEXT_MIME_TYPES = {
+    "text/plain",
+    "text/markdown",
+    "text/rtf",
+    "application/rtf",
+}
+
+
+def _resolve_cookie_secure_flag() -> bool:
+    raw = os.getenv("SENTINEL_SESSION_COOKIE_SECURE")
+    if raw is None:
+        return True
+    normalized = raw.strip().lower()
+    if normalized in {"0", "false", "no"}:
+        return False
+    if normalized in {"1", "true", "yes"}:
+        return True
+    return True
+
 AUTO_APPLY_LIMITS: Dict[str, Optional[int]] = {
     "FREE": 3,
     "PRO": 100,
@@ -178,6 +211,8 @@ AUTO_APPLY_USAGE: Dict[str, int] = {}
 
 PUBLIC_PATHS = {"/login", "/health", "/api/checkout/mercadopago/webhook", "/politica-de-privacidade"}
 PUBLIC_PATH_PREFIXES = ("/static", "/api/auth", "/assets")
+
+SESSION_COOKIE_SECURE = _resolve_cookie_secure_flag()
 
 _DEFAULT_ALLOWED_ORIGINS = [
     "https://www.career.sentinel-os.ia.br",
@@ -230,25 +265,6 @@ else:
         flush=True,
     )
 __all__ = ["app"]
-
-
-def _ensure_default_admin_user() -> None:
-    if get_user_by_email(DEFAULT_ADMIN_EMAIL):
-        return
-    try:
-        register_user(
-            DEFAULT_ADMIN_NAME,
-            DEFAULT_ADMIN_EMAIL,
-            DEFAULT_ADMIN_PASSWORD,
-            plan=DEFAULT_ADMIN_PLAN,
-        )
-        print(f"[AUTH] Default admin provisioned: {DEFAULT_ADMIN_EMAIL}", flush=True)
-    except UserExistsError:
-        # Usuário pode ter sido provisionado por outro worker
-        pass
-
-
-_ensure_default_admin_user()
 
 
 @app.middleware("http")
@@ -445,6 +461,18 @@ DOCX_MIME_TYPES: set[str] = {
 TEXT_EXTENSIONS = (".txt", ".md", ".rtf")
 
 
+def _resolve_resume_kind(filename: str, content_type: str) -> str:
+    lower_name = (filename or "").lower()
+    lowered_type = (content_type or "").lower()
+    if lower_name.endswith(".pdf") or lowered_type in PDF_MIME_TYPES:
+        return "pdf"
+    if lower_name.endswith(".docx") or lowered_type in DOCX_MIME_TYPES:
+        return "docx"
+    if lower_name.endswith(TEXT_EXTENSIONS) or lowered_type in ALLOWED_TEXT_MIME_TYPES:
+        return "text"
+    raise ValueError("Formato não suportado. Envie PDF, DOCX ou TXT.")
+
+
 def _normalize_extracted_text(value: str) -> str:
     cleaned = re.sub(r"\r", "", value)
     cleaned = re.sub(r"\u0000", "", cleaned)
@@ -539,15 +567,17 @@ async def resume_parse(file: UploadFile = File(...)) -> dict[str, str]:
     if not raw_bytes:
         raise HTTPException(status_code=400, detail="Arquivo vazio recebido.")
 
+    if len(raw_bytes) > MAX_RESUME_UPLOAD_SIZE_BYTES:
+        raise HTTPException(status_code=413, detail="Arquivo excede o limite de upload permitido.")
+
     try:
-        if filename.endswith(".pdf") or content_type in PDF_MIME_TYPES:
+        kind = _resolve_resume_kind(filename, content_type)
+        if kind == "pdf":
             extracted = _extract_text_from_pdf_bytes(raw_bytes)
-        elif filename.endswith(".docx") or content_type in DOCX_MIME_TYPES:
+        elif kind == "docx":
             extracted = _extract_text_from_docx_bytes(raw_bytes)
-        elif content_type.startswith("text/") or filename.endswith(TEXT_EXTENSIONS):
-            extracted = _extract_text_from_plain_bytes(raw_bytes)
         else:
-            raise ValueError("Formato não suportado. Envie PDF, DOCX ou TXT.")
+            extracted = _extract_text_from_plain_bytes(raw_bytes)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
@@ -1416,12 +1446,14 @@ def _issue_session_cookie(response: Response, user_id: Optional[str] = None) -> 
     ACTIVE_SESSIONS.add(session_token)
     if user_id:
         SESSION_OWNERS[session_token] = user_id
+    expires_at = int(time.time() + SESSION_MAX_AGE_SECONDS)
     response.set_cookie(
         SESSION_COOKIE_NAME,
         session_token,
         max_age=SESSION_MAX_AGE_SECONDS,
+        expires=expires_at,
         httponly=True,
-        secure=False,
+        secure=SESSION_COOKIE_SECURE,
         samesite="lax",
     )
 
