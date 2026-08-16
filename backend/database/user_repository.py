@@ -23,7 +23,10 @@ def _get_database_url() -> str:
 
 @contextmanager
 def _get_connection():
-    connection = psycopg.connect(_get_database_url())
+    try:
+        connection = psycopg.connect(_get_database_url())
+    except psycopg.OperationalError as exc:
+        raise RuntimeError("Falha ao conectar ao banco de dados.") from exc
     try:
         yield connection
         connection.commit()
@@ -157,6 +160,18 @@ def update_last_login(user_id: str) -> None:
                 sql.SQL("UPDATE {} SET last_login = %s WHERE id = %s").format(sql.Identifier(_USERS_TABLE)),
                 (now, user_id),
             )
+
+
+def update_user_plan(user_id: str, plan: str) -> None:
+    with _get_connection() as connection:
+        _ensure_schema(connection)
+        with connection.cursor() as cursor:
+            cursor.execute(
+                sql.SQL("UPDATE {} SET plan = %s WHERE id = %s").format(sql.Identifier(_USERS_TABLE)),
+                (plan, user_id),
+            )
+            if cursor.rowcount == 0:
+                raise RuntimeError(f"Usuário não encontrado: {user_id}")
 
 
 def ensure_admin_exists(name: str, email: str, password_hash: str, plan: str) -> User:

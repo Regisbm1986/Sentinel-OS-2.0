@@ -1,28 +1,44 @@
 import React from "react";
-import { Search, MapPin, DollarSign, Sparkles, CheckSquare, RefreshCw, Send, ExternalLink, Zap } from "lucide-react";
+import { Search, MapPin, DollarSign, RefreshCw, ExternalLink, Zap, ShieldOff } from "lucide-react";
 import { Job, PlanType } from "../types";
 
 interface JobSearchProps {
   currentPlan: PlanType;
-  targetRole: string;
-  setTargetRole: (role: string) => void;
   jobs: Job[];
   onSearch: () => Promise<void>;
   isSearching: boolean;
   onInitiateApply: (job: Job) => void | Promise<void>;
   appliedJobIds: string[];
+  jobsAvailable: boolean;
+  searchQuery: string;
+  setSearchQuery: (query: string) => void;
 }
 
 export default function JobSearch({
   currentPlan,
-  targetRole,
-  setTargetRole,
   jobs,
   onSearch,
   isSearching,
   onInitiateApply,
   appliedJobIds,
+  jobsAvailable,
+  searchQuery,
+  setSearchQuery,
 }: JobSearchProps) {
+  if (!jobsAvailable) {
+    return (
+      <div id="job-search-panel" className="bg-slate-900/40 border border-slate-800 rounded-xl p-10 text-center flex flex-col items-center justify-center min-h-[280px]">
+        <div className="p-3 bg-slate-950 border border-slate-800 rounded-full text-rose-500 mb-4">
+          <ShieldOff className="h-8 w-8" />
+        </div>
+        <h4 className="text-white font-sans font-semibold text-md">Fonte de vagas não configurada</h4>
+        <p className="text-xs text-slate-400 max-w-sm mt-1">
+          Configure um conector oficial de vagas e credenciais legítimas no backend para habilitar a agregação. Enquanto isso, nenhuma vaga fictícia é exibida nesta seção.
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div id="job-search-panel" className="space-y-6">
       {/* Search Header and Trigger */}
@@ -36,18 +52,18 @@ export default function JobSearch({
               <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-500" />
               <input
                 type="text"
-                value={targetRole}
-                onChange={(e) => setTargetRole(e.target.value)}
-                placeholder="Ex: Cybersecurity Analyst, React Developer, etc..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Defina termos reais para a busca de vagas quando a integração estiver ativa"
                 className="w-full bg-slate-950 border border-slate-800 focus:border-cyan-500 rounded-lg pl-9 pr-4 py-2.5 text-xs text-white placeholder-slate-600 focus:outline-none"
               />
             </div>
           </div>
           <button
             onClick={onSearch}
-            disabled={isSearching || !targetRole.trim()}
+            disabled={isSearching || !searchQuery.trim()}
             className={`w-full sm:w-auto px-6 py-2.5 rounded-lg font-bold text-xs tracking-wider transition-all flex items-center justify-center gap-2 shrink-0 ${
-              isSearching || !targetRole.trim()
+              isSearching || !searchQuery.trim()
                 ? "bg-slate-800 text-slate-500 border border-slate-700 cursor-not-allowed"
                 : "bg-cyan-500 text-slate-950 hover:bg-cyan-400"
             }`}
@@ -66,7 +82,7 @@ export default function JobSearch({
           </div>
           <h4 className="text-white font-sans font-semibold text-md">Nenhuma Vaga Agregada</h4>
           <p className="text-xs text-slate-400 max-w-sm mt-1">
-            Insira o cargo alvo desejado no formulário acima e clique em "Agregar & Classificar Vagas" para iniciar a varredura inteligente do Sentinel Career.
+            Aguardando execução do conector oficial ou acionamento manual via backend.
           </p>
         </div>
       ) : (

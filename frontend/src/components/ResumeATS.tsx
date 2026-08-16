@@ -1,5 +1,5 @@
-import React, { useRef, useState } from "react";
-import { FileText, Cpu, AlertCircle, CheckCircle, Search, Copy, Check, Sparkles } from "lucide-react";
+import React, { useMemo, useRef, useState } from "react";
+import { FileText, Cpu, AlertCircle, CheckCircle, Copy, Check, Sparkles, ShieldOff } from "lucide-react";
 import { OptimizationReport, PlanType } from "../types";
 import { apiFetch } from "../lib/apiClient";
 
@@ -44,30 +44,30 @@ interface ResumeATSProps {
   currentPlan: PlanType;
   resumeText: string;
   setResumeText: (text: string) => void;
-  targetRole: string;
-  setTargetRole: (role: string) => void;
   report: OptimizationReport | null;
   setReport: (report: OptimizationReport | null) => void;
   onOptimize: () => Promise<void>;
   isOptimizing: boolean;
+  atsAvailable: boolean;
 }
 
 export default function ResumeATS({
   currentPlan,
   resumeText,
   setResumeText,
-  targetRole,
-  setTargetRole,
   report,
   setReport,
   onOptimize,
   isOptimizing,
+  atsAvailable,
 }: ResumeATSProps) {
   const [copiedSection, setCopiedSection] = useState<string | null>(null);
   const [uploadedFileName, setUploadedFileName] = useState<string | null>(null);
   const [uploadMessage, setUploadMessage] = useState<string | null>(null);
   const [uploadStatus, setUploadStatus] = useState<"idle" | "info" | "success" | "error">("idle");
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  const disableInputs = useMemo(() => !atsAvailable || currentPlan === "free", [atsAvailable, currentPlan]);
 
   const handleCopy = (text: string, sectionId: string) => {
     navigator.clipboard.writeText(text);
@@ -120,9 +120,6 @@ export default function ResumeATS({
       event.target.value = "";
     }
 
-    if (!targetRole) {
-      setTargetRole("Analista de Segurança Cibernética");
-    }
   };
 
   const renderUploadMessage = () => {
@@ -133,37 +130,6 @@ export default function ResumeATS({
     return <p className={`text-[10px] font-mono ${toneClass}`}>{uploadMessage}</p>;
   };
 
-  // Pre-fill with standard template for easier testing
-  const handleLoadTemplate = () => {
-    setResumeText(`Nome: Reginaldo Soares
-Email: soaresreginaldo@gmail.com
-Telefone: (11) 99999-9999
-
-OBJETIVO:
-Trabalhar com desenvolvimento de sistemas e computação na nuvem.
-
-EXPERIÊNCIA:
-Desenvolvedor de Software | Freelance (2023 - Presente)
-- Criação de websites e landing pages utilizando React e Tailwind CSS.
-- Manutenção de bancos de dados simples e APIs básicas em Node.js.
-- Apoio na configuração de serviços básicos em nuvem.
-
-Analista de Suporte de TI | Tech Solutions (2021 - 2023)
-- Instalação e manutenção de computadores, redes locais e firewalls básicos.
-- Atendimento a chamados e suporte técnico geral de infraestrutura.
-- Criação de scripts simples de automação de backup.
-
-FORMAÇÃO:
-Graduação em Análise e Desenvolvimento de Sistemas (Concluído)
-
-HABILIDADES:
-JavaScript, React, Node.js, SQL, Linux, Configuração de Redes, Firewalls.`);
-    resetUploadFeedback();
-    if (!targetRole) {
-      setTargetRole("Analista de Segurança Cibernética");
-    }
-  };
-
   return (
     <div id="resume-ats-panel" className="grid grid-cols-1 lg:grid-cols-12 gap-6">
       {/* Input Side (40% width on large screens) */}
@@ -171,27 +137,10 @@ JavaScript, React, Node.js, SQL, Linux, Configuração de Redes, Firewalls.`);
         <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-5 backdrop-blur-sm">
           <h3 className="text-md font-sans font-bold text-white mb-4 flex items-center gap-2">
             <FileText className="h-5 w-5 text-cyan-400" />
-            Currículo Atual & Cargo Alvo
+            Currículo para Análise ATS
           </h3>
 
           <div className="space-y-4">
-            {/* Target Role Input */}
-            <div>
-              <label className="block text-xs font-mono text-slate-400 uppercase mb-1.5">
-                Cargo Alvo (Target Role)
-              </label>
-              <div className="relative">
-                <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-500" />
-                <input
-                  type="text"
-                  value={targetRole}
-                  onChange={(e) => setTargetRole(e.target.value)}
-                  placeholder="Ex: Especialista em Cibersegurança Jr"
-                  className="w-full bg-slate-950 border border-slate-800 focus:border-cyan-500 rounded-lg pl-9 pr-4 py-2 text-xs text-white placeholder-slate-600 focus:outline-none"
-                />
-              </div>
-            </div>
-
             {/* Resume Text Area */}
             <div>
               <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between mb-1.5">
@@ -209,16 +158,10 @@ JavaScript, React, Node.js, SQL, Linux, Configuração de Redes, Firewalls.`);
                   <button
                     type="button"
                     onClick={handleUploadClick}
-                    className="text-[10px] font-mono text-cyan-400 hover:underline"
+                    disabled={disableInputs}
+                    className={`text-[10px] font-mono hover:underline ${disableInputs ? "text-slate-600 cursor-not-allowed" : "text-cyan-400"}`}
                   >
                     Fazer upload do currículo
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleLoadTemplate}
-                    className="text-[10px] font-mono text-slate-400 hover:text-white"
-                  >
-                    Carregar Currículo Exemplo
                   </button>
                 </div>
               </div>
@@ -231,16 +174,21 @@ JavaScript, React, Node.js, SQL, Linux, Configuração de Redes, Firewalls.`);
                 onChange={(e) => setResumeText(e.target.value)}
                 placeholder="Cole as informações textuais do seu currículo aqui para análise do sistema ATS..."
                 rows={12}
-                className="w-full bg-slate-950 border border-slate-800 focus:border-cyan-500 rounded-lg p-3 text-xs text-slate-300 placeholder-slate-600 focus:outline-none font-mono resize-y"
+                disabled={disableInputs}
+                className={`w-full border rounded-lg p-3 text-xs font-mono resize-y focus:outline-none ${
+                  disableInputs
+                    ? "bg-slate-900 border-slate-800 text-slate-500 placeholder-slate-600"
+                    : "bg-slate-950 border border-slate-800 focus:border-cyan-500 text-slate-300 placeholder-slate-600"
+                }`}
               />
             </div>
 
             {/* Trigger Button */}
             <button
               onClick={onOptimize}
-              disabled={isOptimizing || !resumeText.trim() || !targetRole.trim()}
+              disabled={disableInputs || isOptimizing || !resumeText.trim()}
               className={`w-full py-3 rounded-lg font-bold text-xs tracking-wider transition-all flex items-center justify-center gap-2 ${
-                isOptimizing || !resumeText.trim() || !targetRole.trim()
+                disableInputs || isOptimizing || !resumeText.trim()
                   ? "bg-slate-800 text-slate-500 border border-slate-700 cursor-not-allowed"
                   : "bg-gradient-to-r from-cyan-500 to-teal-500 text-slate-950 hover:opacity-90 shadow-md shadow-cyan-500/10"
               }`}
@@ -254,7 +202,18 @@ JavaScript, React, Node.js, SQL, Linux, Configuração de Redes, Firewalls.`);
 
       {/* Output Side - ATS analysis details (70% width on large screens) */}
       <div className="lg:col-span-7">
-        {!report ? (
+        {(!atsAvailable || currentPlan === "free") && (
+          <div className="bg-slate-900/40 border border-slate-800 rounded-xl p-8 h-full flex flex-col items-center justify-center text-center min-h-[400px]">
+            <div className="p-3 bg-slate-950 border border-slate-800 rounded-full text-rose-500 mb-4">
+              <ShieldOff className="h-8 w-8" />
+            </div>
+            <h4 className="text-white font-sans font-semibold text-md">Motor ATS indisponível</h4>
+            <p className="text-xs text-slate-400 max-w-sm mt-1">
+              Configure as credenciais obrigatórias no backend para liberar a análise real. Enquanto isso, nenhuma métrica será exibida e nenhuma simulação é apresentada.
+            </p>
+          </div>
+        )}
+        {!report && atsAvailable && currentPlan !== "free" && (
           <div className="bg-slate-900/40 border border-slate-800 rounded-xl p-8 h-full flex flex-col items-center justify-center text-center min-h-[400px]">
             <div className="p-3 bg-slate-950 border border-slate-800 rounded-full text-slate-600 mb-4 animate-pulse">
               <Cpu className="h-8 w-8" />
@@ -264,7 +223,8 @@ JavaScript, React, Node.js, SQL, Linux, Configuração de Redes, Firewalls.`);
               Forneça seu currículo e o cargo desejado no painel ao lado e clique em escanear. A inteligência Sentinel analisará os padrões contra as melhores práticas do setor.
             </p>
           </div>
-        ) : (
+        )}
+        {report && atsAvailable && currentPlan !== "free" && (
           <div className="space-y-6">
             {/* ATS Score Header Card */}
             <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-6 backdrop-blur-sm relative overflow-hidden">

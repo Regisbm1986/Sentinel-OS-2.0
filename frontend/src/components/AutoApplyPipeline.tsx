@@ -31,7 +31,7 @@ export default function AutoApplyPipeline({
   const steps = [
     "Inicializando agente de busca e verificação de assinatura digital Sentinel OS",
     "Extraindo tags e injetando palavras-chave no currículo estruturado",
-    "Gerando Carta de Apresentação customizada com Gemini para " + job.company,
+    "Gerando Carta de Apresentação customizada com Azure OpenAI para " + job.company,
     "Preenchendo campos obrigatórios do formulário (Autofill Inteligente)",
     "Contornando triagem automatizada ATS externa e enviando payload",
     "Candidatura confirmada! Gravando registro de status no Dashboard"
@@ -53,7 +53,7 @@ export default function AutoApplyPipeline({
       const fetchManualAssets = async () => {
         setIsGeneratingManualAssets(true);
         try {
-          const response = await apiFetch("/api/gemini/generate-apply-assets", {
+          const response = await apiFetch("/api/azure/generate-apply-assets", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -62,6 +62,10 @@ export default function AutoApplyPipeline({
               resumeText: "" // server will use default or fallback
             })
           });
+          if (!response.ok) {
+            console.error("[Sentinel Career] Falha ao gerar carta personalizada", response.status);
+            return;
+          }
           const data = await response.json();
           setCustomCoverLetter(data.coverLetter);
         } catch (err) {
@@ -92,8 +96,8 @@ export default function AutoApplyPipeline({
             newLogs.push(`[SENTINEL_AGENT] Palavras-chave injetadas com sucesso: ${job.requiredKeywords.join(", ")}`);
             newLogs.push(`[SYSTEM] Score ATS esperado para esta vaga: ${job.matchRate}%`);
           } else if (stepIndex === 2) {
-            newLogs.push(`[GEMINI_AI] Customizando carta de apresentação para a empresa ${job.company}...`);
-            newLogs.push(`[GEMINI_AI] Payload textual compilado com sucesso.`);
+            newLogs.push(`[AZURE_AI] Customizando carta de apresentação para a empresa ${job.company}...`);
+            newLogs.push(`[AZURE_AI] Payload textual compilado com sucesso.`);
           } else if (stepIndex === 3) {
             newLogs.push(`[AUTO_FILL] Preenchendo campos: Nome, Email, Contato, Resumo do Candidato.`);
             newLogs.push(`[AUTO_FILL] Respondendo pergunta: 'Experiência em Cibersegurança' -> 'Sólida'`);

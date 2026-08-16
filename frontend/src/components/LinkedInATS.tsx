@@ -1,6 +1,17 @@
-import React, { useState } from "react";
-import { Linkedin, Sparkles, Cpu, Lock, CheckCircle, Copy, Check, ChevronRight } from "lucide-react";
+import React, { useMemo, useState } from "react";
+import { Linkedin, Sparkles, Cpu, Lock, Copy, Check, ChevronRight, ShieldOff, CheckCircle2, AlertTriangle } from "lucide-react";
 import { LinkedInAnalysis, PlanType } from "../types";
+
+// Reconhece URLs de perfil pessoal do LinkedIn em variações comuns
+// (com/sem protocolo, com/sem www, subdomínios de país, barra final, query string).
+const LINKEDIN_PROFILE_URL_RE = /^(?:https?:\/\/)?(?:[a-z]{2,3}\.)?linkedin\.com\/in\/([a-zA-Z0-9\-_%]{3,100})\/?(?:[?#].*)?$/i;
+
+function extractLinkedInHandle(value: string): string | null {
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  const match = trimmed.match(LINKEDIN_PROFILE_URL_RE);
+  return match ? match[1] : null;
+}
 
 interface LinkedInATSProps {
   currentPlan: PlanType;
@@ -8,10 +19,10 @@ interface LinkedInATSProps {
   setLinkedinUrl: (url: string) => void;
   linkedinText: string;
   setLinkedinText: (text: string) => void;
-  targetRole: string;
   report: LinkedInAnalysis | null;
   onOptimize: () => Promise<void>;
   isOptimizing: boolean;
+  linkedinAvailable: boolean;
 }
 
 export default function LinkedInATS({
@@ -20,24 +31,25 @@ export default function LinkedInATS({
   setLinkedinUrl,
   linkedinText,
   setLinkedinText,
-  targetRole,
   report,
   onOptimize,
   isOptimizing,
+  linkedinAvailable,
 }: LinkedInATSProps) {
   const [copiedSection, setCopiedSection] = useState<string | null>(null);
+
+  const disableInputs = useMemo(() => !linkedinAvailable || currentPlan === "free", [linkedinAvailable, currentPlan]);
+
+  const linkedinHandle = useMemo(() => extractLinkedInHandle(linkedinUrl), [linkedinUrl]);
+  const linkedinUrlStatus: "empty" | "recognized" | "unrecognized" = useMemo(() => {
+    if (!linkedinUrl.trim()) return "empty";
+    return linkedinHandle ? "recognized" : "unrecognized";
+  }, [linkedinUrl, linkedinHandle]);
 
   const handleCopy = (text: string, sectionId: string) => {
     navigator.clipboard.writeText(text);
     setCopiedSection(sectionId);
     setTimeout(() => setCopiedSection(null), 2000);
-  };
-
-  const handleLoadTemplate = () => {
-    setLinkedinText(`Título atual: Desenvolvedor Web e Suporte de TI
-
-Sobre mim:
-Olá, meu nome é Reginaldo. Trabalho como freelancer fazendo sites em React e dou suporte em computadores e redes. Procuro novas oportunidades para crescer e aprender mais sobre tecnologia e segurança cibernética. Entre em contato comigo se precisar de ajuda com sites!`);
   };
 
   const isLocked = currentPlan === "free";
@@ -80,9 +92,28 @@ Olá, meu nome é Reginaldo. Trabalho como freelancer fazendo sites em React e d
                     placeholder="Cole o link do seu perfil do LinkedIn aqui..."
                     autoComplete="url"
                     inputMode="url"
-                    className="w-full bg-slate-950 border border-slate-800 focus:border-cyan-500 rounded-lg pl-9 pr-4 py-2 text-xs text-white placeholder-slate-600 focus:outline-none"
+                    disabled={disableInputs}
+                    className={`w-full rounded-lg pl-9 pr-4 py-2 text-xs focus:outline-none ${
+                      disableInputs
+                        ? "bg-slate-900 border border-slate-800 text-slate-500 placeholder-slate-600"
+                        : linkedinUrlStatus === "unrecognized"
+                        ? "bg-slate-950 border border-rose-500/60 focus:border-rose-500 text-white placeholder-slate-600"
+                        : "bg-slate-950 border border-slate-800 focus:border-cyan-500 text-white placeholder-slate-600"
+                    }`}
                   />
                 </div>
+                {!disableInputs && linkedinUrlStatus === "recognized" && (
+                  <p className="mt-1.5 flex items-center gap-1.5 text-[11px] text-emerald-400">
+                    <CheckCircle2 className="h-3.5 w-3.5" />
+                    Link do LinkedIn reconhecido{linkedinHandle ? `: /in/${linkedinHandle}` : ""}
+                  </p>
+                )}
+                {!disableInputs && linkedinUrlStatus === "unrecognized" && (
+                  <p className="mt-1.5 flex items-center gap-1.5 text-[11px] text-rose-400">
+                    <AlertTriangle className="h-3.5 w-3.5" />
+                    Não reconhecemos esse link. Use o formato linkedin.com/in/seu-usuario
+                  </p>
+                )}
               </div>
 
               <div>
@@ -90,28 +121,26 @@ Olá, meu nome é Reginaldo. Trabalho como freelancer fazendo sites em React e d
                   <label className="block text-xs font-mono text-slate-400 uppercase">
                     Conteúdo do Perfil (Sobre / Bio atual)
                   </label>
-                  <button
-                    type="button"
-                    onClick={handleLoadTemplate}
-                    className="text-[10px] font-mono text-cyan-400 hover:underline"
-                  >
-                    Carregar Perfil Exemplo
-                  </button>
                 </div>
                 <textarea
                   value={linkedinText}
                   onChange={(e) => setLinkedinText(e.target.value)}
                   placeholder="Cole aqui seu atual Título, Bio ou seção 'Sobre' do LinkedIn para que nossa IA possa analisar o posicionamento técnico..."
                   rows={10}
-                  className="w-full bg-slate-950 border border-slate-800 focus:border-cyan-500 rounded-lg p-3 text-xs text-slate-300 placeholder-slate-600 focus:outline-none font-sans resize-y"
+                  disabled={disableInputs}
+                  className={`w-full rounded-lg p-3 text-xs font-sans resize-y focus:outline-none ${
+                    disableInputs
+                      ? "bg-slate-900 border border-slate-800 text-slate-500 placeholder-slate-600"
+                      : "bg-slate-950 border border-slate-800 focus:border-cyan-500 text-slate-300 placeholder-slate-600"
+                  }`}
                 />
               </div>
 
               <button
                 onClick={onOptimize}
-                disabled={isOptimizing || !linkedinText.trim() || !targetRole.trim()}
+                disabled={disableInputs || isOptimizing || !linkedinText.trim() || linkedinUrlStatus === "unrecognized"}
                 className={`w-full py-3 rounded-lg font-bold text-xs tracking-wider transition-all flex items-center justify-center gap-2 ${
-                  isOptimizing || !linkedinText.trim() || !targetRole.trim()
+                  disableInputs || isOptimizing || !linkedinText.trim() || linkedinUrlStatus === "unrecognized"
                     ? "bg-slate-800 text-slate-500 border border-slate-700 cursor-not-allowed"
                     : "bg-cyan-500 text-slate-950 hover:bg-cyan-400 shadow-md shadow-cyan-500/10"
                 }`}
@@ -125,7 +154,18 @@ Olá, meu nome é Reginaldo. Trabalho como freelancer fazendo sites em React e d
 
         {/* Results area */}
         <div className="lg:col-span-7">
-          {!report ? (
+          {(!linkedinAvailable || currentPlan === "free") && (
+            <div className="bg-slate-900/40 border border-slate-800 rounded-xl p-8 h-full flex flex-col items-center justify-center text-center min-h-[350px]">
+              <div className="p-3 bg-slate-950 border border-slate-800 rounded-full text-rose-500 mb-4">
+                <ShieldOff className="h-8 w-8" />
+              </div>
+              <h4 className="text-white font-sans font-semibold text-md">Integração LinkedIn não configurada</h4>
+              <p className="text-xs text-slate-400 max-w-sm mt-1">
+                Nenhuma análise é executada sem credenciais válidas. Configure o backend com os tokens oficiais para liberar esta área. Enquanto isso, nenhum texto simulado será exibido.
+              </p>
+            </div>
+          )}
+          {!report && linkedinAvailable && currentPlan !== "free" ? (
             <div className="bg-slate-900/40 border border-slate-800 rounded-xl p-8 h-full flex flex-col items-center justify-center text-center min-h-[350px]">
               <div className="p-3 bg-slate-950 border border-slate-800 rounded-full text-slate-600 mb-4 animate-pulse">
                 <Linkedin className="h-8 w-8" />
@@ -135,7 +175,8 @@ Olá, meu nome é Reginaldo. Trabalho como freelancer fazendo sites em React e d
                 Coloque suas informações textuais de perfil ao lado e escanear. A IA irá reconfigurar seu posicionamento para maximizar visualizações de recrutadores.
               </p>
             </div>
-          ) : (
+          ) : null}
+          {report && linkedinAvailable && currentPlan !== "free" ? (
             <div className="space-y-6">
               {/* Profile strength and headline */}
               <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-6 backdrop-blur-sm">
@@ -225,7 +266,7 @@ Olá, meu nome é Reginaldo. Trabalho como freelancer fazendo sites em React e d
                 </div>
               </div>
             </div>
-          )}
+          ) : null}
         </div>
       </div>
     </div>

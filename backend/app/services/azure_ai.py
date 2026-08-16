@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from products.sentinel_career.backend.gpt.client import (
     get_azure_openai_client,
@@ -50,8 +50,17 @@ def _ensure_list(value: Any) -> List[str]:
     return []
 
 
-def generate_cv_analysis(resume_text: str, target_role: str) -> Dict[str, Any]:
+def _sanitize_target_role(target_role: Optional[str]) -> str:
+    if not target_role:
+        return "Cargo desejado não informado"
+    cleaned = target_role.strip()
+    return cleaned if cleaned else "Cargo desejado não informado"
+
+
+def generate_cv_analysis(resume_text: str, target_role: Optional[str]) -> Dict[str, Any]:
     """Produce a detailed ATS analysis using Azure GPT-4o."""
+
+    effective_role = _sanitize_target_role(target_role)
 
     messages = [
         {
@@ -70,7 +79,7 @@ def generate_cv_analysis(resume_text: str, target_role: str) -> Dict[str, Any]:
             "content": json.dumps(
                 {
                     "resumeText": resume_text,
-                    "targetRole": target_role,
+                    "targetRole": effective_role,
                 },
                 ensure_ascii=False,
             ),
@@ -101,12 +110,18 @@ def generate_cv_analysis(resume_text: str, target_role: str) -> Dict[str, Any]:
     }
 
 
-def analyze_linkedin_profile(profile_text: str, target_role: str, profile_url: str | None = None) -> Dict[str, Any]:
+def analyze_linkedin_profile(
+    profile_text: str,
+    target_role: Optional[str],
+    profile_url: str | None = None,
+) -> Dict[str, Any]:
     """Return LinkedIn positioning analysis via Azure GPT-4o."""
+
+    effective_role = _sanitize_target_role(target_role)
 
     user_payload = {
         "profile": profile_text,
-        "targetRole": target_role,
+        "targetRole": effective_role,
     }
 
     if profile_url:
@@ -147,8 +162,10 @@ def analyze_linkedin_profile(profile_text: str, target_role: str, profile_url: s
     }
 
 
-def search_jobs_suggestions(target_role: str, resume_text: str | None = None) -> List[Dict[str, Any]]:
+def search_jobs_suggestions(target_role: Optional[str], resume_text: str | None = None) -> List[Dict[str, Any]]:
     """Generate curated job leads using Azure GPT-4o."""
+
+    effective_role = _sanitize_target_role(target_role)
 
     def mentions_external_market(value: str) -> bool:
         lowered = value.lower()
@@ -169,7 +186,7 @@ def search_jobs_suggestions(target_role: str, resume_text: str | None = None) ->
         return any(token in lowered for token in foreign_tokens)
 
     enforce_brazil_focus = True
-    if mentions_external_market(target_role):
+    if mentions_external_market(effective_role):
         enforce_brazil_focus = False
     elif resume_text and mentions_external_market(resume_text):
         enforce_brazil_focus = False
@@ -197,7 +214,7 @@ def search_jobs_suggestions(target_role: str, resume_text: str | None = None) ->
             "role": "user",
             "content": json.dumps(
                 {
-                    "targetRole": target_role,
+                    "targetRole": effective_role,
                     "resumeHighlights": resume_text or "",
                 },
                 ensure_ascii=False,
@@ -226,7 +243,7 @@ def search_jobs_suggestions(target_role: str, resume_text: str | None = None) ->
 
         sanitized = {
             "id": str(job.get("id") or f"job-{index}"),
-            "title": str(job.get("title") or target_role),
+            "title": str(job.get("title") or effective_role),
             "company": str(job.get("company") or "Empresa Confidencial"),
             "location": location,
             "salary": str(job.get("salary") or "Confidencial"),

@@ -1,0 +1,297 @@
+{% extends "admin/base.html" %}
+
+{% block title %}Career Health | Sentinel Career{% endblock %}
+{% block page_id %}career-health{% endblock %}
+{% block heading %}Career Health{% endblock %}
+
+{% block status_chips %}
+  <span class="admin-pill">
+    <span class="h-2 w-2 rounded-full bg-emerald-400 animate-pulse"></span>
+    Endpoint oficial ativo
+  </span>
+  <span class="admin-pill">Simulações em tempo real</span>
+{% endblock %}
+
+{% block content %}
+<section class="grid gap-6 lg:grid-cols-2">
+  <article class="admin-surface">
+    <h2 class="admin-section-title">Calcular novo score</h2>
+    <p class="mt-3 text-sm text-slate-300">Preencha os campos abaixo para enviar os dados do ATS ao endpoint <code class="text-xs">/api/v1/career-health/calculate</code>. Nenhuma informação é persistida.</p>
+
+    <form id="career-health-form" class="mt-6 space-y-5">
+      <div class="grid gap-4 sm:grid-cols-2">
+        <label class="flex flex-col gap-2 text-sm">
+          <span class="font-semibold text-slate-200">ATS Score</span>
+          <input type="number" name="ats_score" min="0" max="100" step="1" value="75" class="rounded-xl border border-[#1e293b] bg-black/40 px-3 py-2 text-slate-100 focus:outline-none focus:ring-2 focus:ring-cyan-400" required>
+        </label>
+        <label class="flex flex-col gap-2 text-sm">
+          <span class="font-semibold text-slate-200">Probabilidade de Entrevista</span>
+          <input type="number" name="interview_probability" min="0" max="100" step="1" value="60" class="rounded-xl border border-[#1e293b] bg-black/40 px-3 py-2 text-slate-100 focus:outline-none focus:ring-2 focus:ring-cyan-400" required>
+        </label>
+      </div>
+      <label class="flex flex-col gap-2 text-sm">
+        <span class="font-semibold text-slate-200">Keywords encontradas</span>
+        <textarea name="keywords_found" rows="3" placeholder="separe por vírgulas ou linhas" class="rounded-xl border border-[#1e293b] bg-black/40 px-3 py-2 text-slate-100 focus:outline-none focus:ring-2 focus:ring-cyan-400">Python, Segurança em Nuvem, Zero Trust</textarea>
+      </label>
+      <label class="flex flex-col gap-2 text-sm">
+        <span class="font-semibold text-slate-200">Keywords ausentes</span>
+        <textarea name="keywords_missing" rows="3" placeholder="separe por vírgulas ou linhas" class="rounded-xl border border-[#1e293b] bg-black/40 px-3 py-2 text-slate-100 focus:outline-none focus:ring-2 focus:ring-cyan-400">Kubernetes, Compliance LGPD</textarea>
+      </label>
+      <label class="flex flex-col gap-2 text-sm">
+        <span class="font-semibold text-slate-200">Resumo do currículo</span>
+        <textarea name="summary" rows="4" placeholder="Cole o resumo interpretado pelo ATS" class="rounded-xl border border-[#1e293b] bg-black/40 px-3 py-2 text-slate-100 focus:outline-none focus:ring-2 focus:ring-cyan-400">Especialista em segurança ofensiva com 7 anos em defesa de nuvem e resposta a incidentes.</textarea>
+      </label>
+      <label class="flex flex-col gap-2 text-sm">
+        <span class="font-semibold text-slate-200">Market readiness (opcional)</span>
+        <input type="number" name="market_readiness" min="0" max="100" step="1" class="rounded-xl border border-[#1e293b] bg-black/40 px-3 py-2 text-slate-100 focus:outline-none focus:ring-2 focus:ring-cyan-400" placeholder="0 a 100">
+      </label>
+      <button type="submit" class="admin-action">Calcular Career Health</button>
+    </form>
+    <p id="career-health-error" class="mt-4 text-sm text-rose-300"></p>
+  </article>
+
+  <article class="admin-surface">
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+      <h2 class="admin-section-title">Resultado</h2>
+      <span class="admin-pill">Sem dados enviados</span>
+    </div>
+    <p class="mt-3 text-sm text-slate-400">Os campos abaixo são preenchidos automaticamente após a chamada ao endpoint.</p>
+
+    <div id="career-health-empty" class="mt-6 rounded-2xl border border-dashed border-[#1e293b] bg-black/30 px-6 py-10 text-center text-sm text-slate-400">
+      Sem dados. Envie uma simulação para visualizar o resultado.
+    </div>
+
+    <div id="career-health-result" class="hidden mt-6 space-y-6">
+      <div class="rounded-2xl border border-[#1e293b] bg-black/30 p-6">
+        <p class="text-xs uppercase tracking-[0.2em] text-slate-400">Career Health Score</p>
+        <div class="mt-4 flex items-center gap-4">
+          <span data-ch-score class="text-5xl font-semibold text-slate-100">0</span>
+          <span data-ch-status class="inline-flex items-center rounded-full bg-emerald-400/20 px-4 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-emerald-200">Status</span>
+        </div>
+        <p class="mt-4 text-sm text-slate-300" data-ch-summary>Sem resumo disponível.</p>
+      </div>
+
+      <div class="grid gap-4 md:grid-cols-2">
+        <div class="rounded-2xl border border-[#1e293b] bg-black/30 p-5">
+          <h3 class="text-sm font-semibold text-slate-200 uppercase tracking-[0.18em]">Pontos fortes</h3>
+          <ul data-ch-strengths class="mt-3 space-y-2 text-sm text-slate-100"></ul>
+        </div>
+        <div class="rounded-2xl border border-[#1e293b] bg-black/30 p-5">
+          <h3 class="text-sm font-semibold text-slate-200 uppercase tracking-[0.18em]">Prioridades</h3>
+          <ul data-ch-priorities class="mt-3 space-y-2 text-sm text-slate-100"></ul>
+        </div>
+      </div>
+
+      <div class="rounded-2xl border border-[#1e293b] bg-black/30 p-5">
+        <h3 class="text-sm font-semibold text-slate-200 uppercase tracking-[0.18em]">Recomendações</h3>
+        <ul data-ch-recommendations class="mt-3 space-y-2 text-sm text-slate-100"></ul>
+      </div>
+
+      <div class="rounded-2xl border border-[#1e293b] bg-black/30 p-5">
+        <h3 class="text-sm font-semibold text-slate-200 uppercase tracking-[0.18em]">Distribuição das métricas</h3>
+        <ul data-ch-scores class="mt-3 space-y-2 text-sm text-slate-100"></ul>
+      </div>
+    </div>
+  </article>
+</section>
+
+<section class="admin-surface">
+  <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+    <h2 class="admin-section-title">Histórico recente</h2>
+    <span class="admin-pill">Últimas execuções</span>
+  </div>
+  <p class="mt-3 text-sm text-slate-400">Este painel reflete até dez cálculos recentes, quando disponíveis.</p>
+  {% if career_health_history %}
+    <ul class="mt-6 space-y-4">
+      {% for entry in career_health_history %}
+        <li class="rounded-2xl border border-[#1e293b] bg-black/35 p-5">
+          <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p class="text-xs uppercase tracking-[0.2em] text-cyan-300">{{ entry.status or 'Sem status' }}</p>
+              <p class="mt-1 text-sm font-semibold text-slate-100">{{ entry.timestamp or entry.created_at or 'Sem horário' }}</p>
+              <p class="mt-2 text-sm text-slate-300">Score: {{ entry.career_health or entry.score or 'Sem dados' }}</p>
+            </div>
+            <div class="text-sm text-slate-300">
+              <p>Recomendações:</p>
+              <ul class="mt-1 list-disc pl-4">
+                {% if entry.recommendations %}
+                  {% for item in entry.recommendations %}
+                    <li>{{ item }}</li>
+                  {% endfor %}
+                {% else %}
+                  <li>Sem recomendações registradas.</li>
+                {% endif %}
+              </ul>
+            </div>
+          </div>
+        </li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <p class="mt-6 text-sm text-slate-400">Sem dados para exibir. As execuções aparecerão aqui assim que forem efetuadas.</p>
+  {% endif %}
+</section>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+(function() {
+  const form = document.getElementById("career-health-form");
+  if (!form) {
+    return;
+  }
+  const resultCard = document.getElementById("career-health-result");
+  const emptyState = document.getElementById("career-health-empty");
+  const statusBadge = document.querySelector('[data-ch-status]');
+  const scoreValue = document.querySelector('[data-ch-score]');
+  const summaryBox = document.querySelector('[data-ch-summary]');
+  const strengthsList = document.querySelector('[data-ch-strengths]');
+  const prioritiesList = document.querySelector('[data-ch-priorities]');
+  const recommendationsList = document.querySelector('[data-ch-recommendations]');
+  const scoresList = document.querySelector('[data-ch-scores]');
+  const errorBox = document.getElementById("career-health-error");
+  const submitButton = form.querySelector('button[type="submit"]');
+
+  const toNumber = (value) => {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : 0;
+  };
+
+  const toList = (value) => {
+    if (!value) {
+      return [];
+    }
+    return value
+      .toString()
+      .split(/[,\n]/)
+      .map((item) => item.trim())
+      .filter(Boolean);
+  };
+
+  const populateList = (element, items, emptyMessage) => {
+    if (!element) {
+      return;
+    }
+    element.innerHTML = "";
+    if (!items || !items.length) {
+      const li = document.createElement("li");
+      li.className = "text-sm text-slate-400";
+      li.textContent = emptyMessage;
+      element.appendChild(li);
+      return;
+    }
+    items.forEach((item) => {
+      const li = document.createElement("li");
+      li.textContent = item;
+      element.appendChild(li);
+    });
+  };
+
+  const populateScores = (element, scores) => {
+    if (!element) {
+      return;
+    }
+    element.innerHTML = "";
+    if (!scores || Object.keys(scores).length === 0) {
+      const li = document.createElement("li");
+      li.className = "text-sm text-slate-400";
+      li.textContent = "Sem métricas geradas.";
+      element.appendChild(li);
+      return;
+    }
+    Object.entries(scores).forEach(([key, value]) => {
+      const li = document.createElement("li");
+      li.className = "flex items-center justify-between gap-3 rounded-xl border border-[#1e293b] bg-black/25 px-4 py-2";
+      const label = document.createElement("span");
+      label.className = "text-xs uppercase tracking-[0.2em] text-slate-400";
+      label.textContent = key;
+      const val = document.createElement("span");
+      val.className = "font-semibold text-slate-100";
+      val.textContent = value;
+      li.appendChild(label);
+      li.appendChild(val);
+      element.appendChild(li);
+    });
+  };
+
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    if (submitButton) {
+      submitButton.disabled = true;
+    }
+    if (errorBox) {
+      errorBox.textContent = "";
+    }
+
+    const formData = new FormData(form);
+    const payload = {
+      data: {
+        ats_score: toNumber(formData.get("ats_score")),
+        interview_probability: toNumber(formData.get("interview_probability")),
+        keywords_found: toList(formData.get("keywords_found")),
+        keywords_missing: toList(formData.get("keywords_missing")),
+        summary: (formData.get("summary") || "").toString(),
+      },
+    };
+
+    const marketValue = formData.get("market_readiness");
+    if (marketValue !== null && marketValue !== "") {
+      payload.data.market_readiness = toNumber(marketValue);
+    }
+
+    try {
+      const response = await fetch("/api/v1/career-health/calculate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        const detail = await response.json().catch(() => ({}));
+        throw new Error(detail.detail || "Falha ao calcular o Career Health.");
+      }
+
+      const result = await response.json();
+      if (scoreValue) {
+        scoreValue.textContent = result.career_health ?? "Sem dados";
+      }
+      if (statusBadge) {
+        statusBadge.textContent = result.status ?? "Sem status";
+        if (result.color) {
+          statusBadge.style.background = result.color;
+          statusBadge.style.color = "#030712";
+        }
+      }
+      if (summaryBox) {
+        summaryBox.textContent = result.summary && result.summary.trim() ? result.summary : "Sem resumo disponível.";
+      }
+      populateList(strengthsList, result.strengths, "Sem pontos fortes.");
+      populateList(prioritiesList, result.priorities, "Sem prioridades pendentes.");
+      populateList(recommendationsList, result.recommendations, "Sem recomendações registradas.");
+      populateScores(scoresList, result.scores);
+
+      if (emptyState) {
+        emptyState.classList.add("hidden");
+      }
+      if (resultCard) {
+        resultCard.classList.remove("hidden");
+      }
+    } catch (error) {
+      if (errorBox) {
+        errorBox.textContent = error && error.message ? error.message : "Falha ao calcular o Career Health.";
+      }
+      if (resultCard) {
+        resultCard.classList.add("hidden");
+      }
+      if (emptyState) {
+        emptyState.classList.remove("hidden");
+      }
+    } finally {
+      if (submitButton) {
+        submitButton.disabled = false;
+      }
+    }
+  });
+})();
+</script>
+{% endblock %}

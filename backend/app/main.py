@@ -1,14 +1,27 @@
+import json
 import os
-import random
 import secrets
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Set
-from urllib.parse import urlencode, quote, unquote, urlparse, urljoin
+from urllib.parse import urlencode, urlparse, urljoin
 from io import BytesIO
 import re
 from zipfile import ZipFile, BadZipFile
+
+from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
+
+from products.sentinel_career.backend.app.services.oauth_providers import (
+    OAuthExchangeError,
+    OAuthUser,
+    google_oauth_client,
+)
+from products.sentinel_career.backend.app.services.oauth_state import (
+    OAuthStateData,
+    OAuthStateResult,
+    oauth_state_store,
+)
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Request, Form, Response, UploadFile, File
@@ -26,6 +39,21 @@ from products.sentinel_career.backend.app.services.azure_ai import (
     generate_cv_analysis,
     search_jobs_suggestions,
 )
+from products.sentinel_career.backend.linkedin.validator import (
+    extract_linkedin_handle,
+    normalize_linkedin_url,
+)
+from products.sentinel_career.backend.app.services.mercado_pago import (
+    AccessTokenStatus,
+    MercadoPagoError,
+    MercadoPagoPayment,
+    evaluate_integration as evaluate_mercadopago,
+    fetch_payment,
+    normalize_payment_status,
+    sanitize_access_token,
+    validate_webhook_signature,
+)
+from products.sentinel_career.backend.auth import auth as auth_module
 from products.sentinel_career.backend.auth.auth import login_user, register_user
 from products.sentinel_career.backend.auth.exceptions import (
     InvalidCredentials,
@@ -36,7 +64,10 @@ from products.sentinel_career.backend.database.user_repository import (
     get_user_by_email,
     get_user_by_id,
     list_users,
+    update_last_login,
+    update_user_plan,
 )
+from products.sentinel_career.backend.gpt.client import get_default_deployment, has_azure_openai_credentials
 
 try:  # Mercado Pago SDK should be available in runtime environment
     import mercadopago  # type: ignore
@@ -71,6 +102,15 @@ ENV_PATH = _resolve_env_file()
 load_dotenv(dotenv_path=ENV_PATH)
 PROJECT_ROOT = ENV_PATH.parent
 
+DATA_DIR = PROJECT_ROOT / "data"
+DATA_DIR.mkdir(parents=True, exist_ok=True)
+MERCADOPAGO_STATE_PATH = DATA_DIR / "mercadopago_webhooks.json"
+
+CAREER_HEALTH_HISTORY_PATHS = [
+    PROJECT_ROOT / "career_health_history.json",
+    PROJECT_ROOT / "products" / "sentinel_career" / "data" / "career_health_history.json",
+]
+
 print(f"[ENV] .env carregado de {ENV_PATH}", flush=True)
 
 
@@ -82,11 +122,252 @@ def _get_env_value(*keys: str) -> Optional[str]:
     return None
 
 
+def _is_placeholder_env_value(
+    value: str,
+    *,
+    invalid_values: Set[str],
+    invalid_prefixes: tuple[str, ...],
+) -> bool:
+    normalized = value.strip().lower()
+    if not normalized:
+        return True
+    if normalized in {candidate.lower() for candidate in invalid_values}:
+        return True
+    return any(normalized.startswith(prefix.lower()) for prefix in invalid_prefixes)
+
+
+def _get_mercadopago_access_token() -> Optional[str]:
+    raw_token = _get_env_value("MERCADOPAGO_ACCESS_TOKEN")
+    token, status = sanitize_access_token(raw_token, environment=os.getenv("ENVIRONMENT"))
+
+    if token is not None:
+        if status == AccessTokenStatus.UNKNOWN:
+            print(
+                "[MERCADOPAGO] Token configurado com formato não reconhecido. Prosseguindo com cautela.",
+                flush=True,
+            )
+        return token
+
+    if status == AccessTokenStatus.ABSENT:
+        return None
+
+    messages = {
+        AccessTokenStatus.PLACEHOLDER: "[MERCADOPAGO] Token configurado aparenta ser placeholder. Integração desativada.",
+        AccessTokenStatus.INVALID_FORMAT: "[MERCADOPAGO] Token configurado possui formato inválido. Integração desativada.",
+        AccessTokenStatus.SANDBOX_DISALLOWED: "[MERCADOPAGO] Token sandbox configurado, mas ambiente é de produção. Integração desativada.",
+        AccessTokenStatus.PRODUCTION_DISALLOWED: "[MERCADOPAGO] Token de produção configurado, mas ambiente não é produção. Integração desativada.",
+    }
+
+    message = messages.get(status)
+    if message:
+        print(message, flush=True)
+
+    return None
+
+
+def _has_valid_mercadopago_credentials() -> bool:
+    return _get_mercadopago_access_token() is not None
+
+
+def _require_oauth_client_id(provider: str, *keys: str) -> str:
+    candidate = _get_env_value(*keys)
+    joined = " ou ".join(keys)
+    if not candidate:
+        print(f"[OAUTH][{provider}] Variáveis ausentes: {joined}", flush=True)
+        raise HTTPException(status_code=503, detail=f"{provider} OAuth não configurado: defina {joined}.")
+
+    if _is_placeholder_env_value(
+        candidate,
+        invalid_values=_OAUTH_INVALID_VALUES,
+        invalid_prefixes=_OAUTH_INVALID_PREFIXES,
+    ):
+        print(f"[OAUTH][{provider}] Valor inválido configurado em {joined}.", flush=True)
+        raise HTTPException(
+            status_code=503,
+            detail=f"{provider} OAuth não configurado: forneça credenciais válidas em {joined}.",
+        )
+
+    return candidate
+
+
+def _require_oauth_secret(provider: str, *keys: str) -> str:
+    candidate = _get_env_value(*keys)
+    joined = " ou ".join(keys)
+    if not candidate:
+        print(f"[OAUTH][{provider}] Segredo ausente: {joined}", flush=True)
+        raise HTTPException(status_code=503, detail=f"{provider} OAuth não configurado: defina {joined}.")
+
+    if _is_placeholder_env_value(
+        candidate,
+        invalid_values=_OAUTH_INVALID_VALUES,
+        invalid_prefixes=_OAUTH_INVALID_PREFIXES,
+    ):
+        print(f"[OAUTH][{provider}] Valor inválido configurado em {joined}.", flush=True)
+        raise HTTPException(
+            status_code=503,
+            detail=f"{provider} OAuth não configurado: forneça segredo válido em {joined}.",
+        )
+
+    return candidate
+
+
+def _has_oauth_configuration(*keys: str) -> bool:
+    candidate = _get_env_value(*keys)
+    if not candidate:
+        return False
+    if _is_placeholder_env_value(
+        candidate,
+        invalid_values=_OAUTH_INVALID_VALUES,
+        invalid_prefixes=_OAUTH_INVALID_PREFIXES,
+    ):
+        return False
+    return True
+
+
 def _mask_env_value(value: Optional[str]) -> str:
     if not value:
         return "ausente"
     prefix = value[:4]
     return f"presente ({prefix}...)" if len(value) > 4 else f"presente ({prefix})"
+
+
+def _load_mercadopago_event_state() -> dict[str, Any]:
+    if not MERCADOPAGO_STATE_PATH.exists():
+        return {
+            "payments": {},
+        }
+    try:
+        with MERCADOPAGO_STATE_PATH.open("r", encoding="utf-8") as handle:
+            data = json.load(handle)
+    except Exception as exc:
+        print(f"[MERCADOPAGO][state] Falha ao ler estado persistido: {exc}", flush=True)
+        return {
+            "payments": {},
+        }
+
+    payments = data.get("payments") if isinstance(data, dict) else {}
+    if not isinstance(payments, dict):
+        payments = {}
+    return {
+        "payments": payments,
+    }
+
+
+def _save_mercadopago_event_state(state: dict[str, Any]) -> None:
+    payload = {"payments": state.get("payments", {})}
+    try:
+        with MERCADOPAGO_STATE_PATH.open("w", encoding="utf-8") as handle:
+            json.dump(payload, handle, indent=2, sort_keys=True)
+    except Exception as exc:
+        print(f"[MERCADOPAGO][state] Falha ao salvar estado: {exc}", flush=True)
+
+
+def _record_mercadopago_event(
+    payment: MercadoPagoPayment,
+    *,
+    event_id: Optional[str],
+    action: Optional[str],
+    normalized_status: str,
+) -> tuple[bool, dict[str, Any]]:
+    state = _load_mercadopago_event_state()
+    payments = state.setdefault("payments", {})
+
+    existing = payments.get(payment.payment_id)
+    history = []
+    if isinstance(existing, dict):
+        raw_history = existing.get("history")
+        if isinstance(raw_history, list):
+            history = [item for item in raw_history if isinstance(item, dict)]
+
+    already_processed = False
+    if event_id and any(entry.get("event_id") == event_id for entry in history):
+        already_processed = True
+
+    if already_processed:
+        return True, existing if isinstance(existing, dict) else {}
+
+    received_at = datetime.now(timezone.utc).isoformat()
+
+    history.append(
+        {
+            "event_id": event_id,
+            "action": action,
+            "normalized_status": normalized_status,
+            "status": payment.status,
+            "status_detail": payment.status_detail,
+            "received_at": received_at,
+        }
+    )
+
+    record = {
+        "payment_id": payment.payment_id,
+        "normalized_status": normalized_status,
+        "status": payment.status,
+        "status_detail": payment.status_detail,
+        "external_reference": payment.external_reference,
+        "metadata": payment.metadata,
+        "transaction_amount": str(payment.transaction_amount) if payment.transaction_amount is not None else None,
+        "currency_id": payment.currency_id,
+        "payer_email": payment.payer_email,
+        "date_created": payment.date_created,
+        "date_approved": payment.date_approved,
+        "preference_id": payment.preference_id,
+        "last_event_id": event_id,
+        "updated_at": received_at,
+        "history": history,
+    }
+
+    payments[payment.payment_id] = record
+    _save_mercadopago_event_state(state)
+    return False, record
+
+
+def _map_payment_plan_id(plan_id: Optional[str]) -> Optional[str]:
+    if not plan_id:
+        return None
+    normalized = plan_id.strip().lower()
+    mapping = {
+        "pro": "PRO",
+        "premium": "PREMIUM",
+        "enterprise": "MASTER",
+    }
+    return mapping.get(normalized)
+
+
+def _update_legacy_user_plan_cache(user_id: str, plan_code: str) -> None:
+    for legacy in auth_module.USERS_DB.values():
+        if getattr(legacy, "id", None) == user_id:
+            setattr(legacy, "plan", plan_code)
+
+
+def _apply_user_plan_change(user_id: Optional[str], plan_code: Optional[str]) -> bool:
+    if not user_id or not plan_code:
+        return False
+
+    applied = False
+    try:
+        update_user_plan(user_id, plan_code)
+        applied = True
+    except RuntimeError as exc:
+        print(f"[MERCADOPAGO][plan] Falha ao atualizar plano no banco: {exc}", flush=True)
+    except Exception as exc:  # pragma: no cover - defensive
+        print(f"[MERCADOPAGO][plan] Erro inesperado ao atualizar plano: {exc}", flush=True)
+
+    try:
+        user_obj = get_user_by_id(user_id)
+    except RuntimeError:
+        user_obj = None
+
+    if user_obj is not None:
+        setattr(user_obj, "plan", plan_code)
+        applied = True
+
+    _update_legacy_user_plan_cache(user_id, plan_code)
+
+    if applied:
+        AUTO_APPLY_USAGE.pop(user_id, None)
+
+    return applied
 
 APP_DIR = Path(__file__).resolve().parent
 STATIC_DIR = APP_DIR / "static"
@@ -115,51 +396,26 @@ templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 
 ADMIN_PAGE_TEMPLATES: dict[str, str] = {
     "dashboard": "admin/dashboard.html",
-    "users": "admin/users.html",
-    "payments": "admin/payments.html",
-    "analytics": "admin/analytics.html",
-    "logs": "admin/logs.html",
-    "support": "admin/support.html",
-    "settings": "admin/settings.html",
 }
 
 GOOGLE_OAUTH_AUTHORIZE_URL = "https://accounts.google.com/o/oauth2/v2/auth"
-LINKEDIN_OAUTH_AUTHORIZE_URL = "https://www.linkedin.com/oauth/v2/authorization"
 MERCADO_PAGO_PLANS = {
     "pro": {"price": 39.90, "title": "Sentinel Career PRO"},
     "enterprise": {"price": 79.90, "title": "Sentinel Career ENTERPRISE"},
 }
 
-DEFAULT_ADMIN_EMAIL = os.getenv("SENTINEL_ADMIN_EMAIL", "admin@sentinel.ia")
-DEFAULT_ADMIN_PASSWORD = os.getenv("SENTINEL_ADMIN_PASSWORD", "Sentinel!2026")
-DEFAULT_ADMIN_NAME = os.getenv("SENTINEL_ADMIN_NAME", "Sentinel Admin")
-DEFAULT_ADMIN_PLAN = os.getenv("SENTINEL_ADMIN_PLAN", "ADMIN")
+DEFAULT_ADMIN_EMAIL = os.getenv("SENTINEL_ADMIN_EMAIL")
+DEFAULT_ADMIN_PASSWORD = os.getenv("SENTINEL_ADMIN_PASSWORD")
+DEFAULT_ADMIN_NAME = os.getenv("SENTINEL_ADMIN_NAME")
+DEFAULT_ADMIN_PLAN = os.getenv("SENTINEL_ADMIN_PLAN")
 
 FRONTEND_DIR = PROJECT_ROOT / "products" / "sentinel_career" / "frontend"
 FRONTEND_DIST_DIR = FRONTEND_DIR / "dist"
 FRONTEND_ASSETS_DIR = FRONTEND_DIST_DIR / "assets"
 FRONTEND_INDEX_FILE = FRONTEND_DIST_DIR / "index.html"
 
-DEFAULT_DASHBOARD_ERROR_LOGS: list[dict[str, Any]] = [
-    {
-        "timestamp": "2026-08-04 22:41",
-        "message": "Falha 401 ao trocar código OAuth Google — credencial expirada, chave regenerada.",
-        "severity": "Crítico",
-        "reprocess": False,
-    },
-    {
-        "timestamp": "2026-08-04 21:58",
-        "message": "Webhook Mercado Pago atrasado por 2m34s — fila de reprocessamento executada com sucesso.",
-        "severity": "Alto",
-        "reprocess": True,
-    },
-    {
-        "timestamp": "2026-08-04 21:12",
-        "message": "Erro de permissão ao acessar storage ATS — política atualizada e cache invalidado.",
-        "severity": "Médio",
-        "reprocess": False,
-    },
-]
+CANONICAL_DOMAIN = "career.sentinel-os.ia.br"
+DEFAULT_POST_LOGIN_ROUTE = "/admin/dashboard"
 
 SESSION_COOKIE_NAME = "sentinel_session"
 SESSION_HEADER_NAME = "X-Sentinel-Session"
@@ -209,7 +465,16 @@ AUTO_APPLY_LIMITS: Dict[str, Optional[int]] = {
 }
 AUTO_APPLY_USAGE: Dict[str, int] = {}
 
-PUBLIC_PATHS = {"/login", "/health", "/api/checkout/mercadopago/webhook", "/politica-de-privacidade"}
+PUBLIC_PATHS = {
+    "/",
+    "/login",
+    "/health",
+    "/api/checkout/mercadopago/webhook",
+    "/politica-de-privacidade",
+    "/diretrizes",
+    "/termos",
+    "/termos-de-uso",
+}
 PUBLIC_PATH_PREFIXES = ("/static", "/api/auth", "/assets")
 
 SESSION_COOKIE_SECURE = _resolve_cookie_secure_flag()
@@ -218,6 +483,23 @@ _DEFAULT_ALLOWED_ORIGINS = [
     "https://www.career.sentinel-os.ia.br",
     "https://career.sentinel-os.ia.br",
 ]
+
+_OAUTH_INVALID_VALUES = {
+    "homolog-linkedin-client",
+    "homolog-google-client",
+    "example-client",
+    "placeholder",
+    "dummy",
+    "test",
+}
+_OAUTH_INVALID_PREFIXES = (
+    "homolog-",
+    "sandbox-",
+    "test-",
+    "dummy-",
+    "placeholder-",
+    "example-",
+)
 
 def _load_allowed_origins() -> List[str]:
     raw = os.getenv("SENTINEL_ALLOWED_ORIGINS", "")
@@ -247,7 +529,6 @@ async def _log_env_startup_status() -> None:
     print(f"[ENV][startup] arquivo carregado: {ENV_PATH}", flush=True)
     diagnostics = {
         "GOOGLE_CLIENT_ID": _get_env_value("GOOGLE_CLIENT_ID", "GOOGLE_OAUTH_CLIENT_ID"),
-        "LINKEDIN_CLIENT_ID": _get_env_value("LINKEDIN_CLIENT_ID", "LINKEDIN_OAUTH_CLIENT_ID"),
         "MERCADOPAGO_ACCESS_TOKEN": _get_env_value("MERCADOPAGO_ACCESS_TOKEN",),
     }
     for key, value in diagnostics.items():
@@ -293,6 +574,23 @@ def _map_plan_to_frontend(plan_value: str) -> str:
         "ADMIN": "enterprise",
     }
     return mapping.get(normalized, "free")
+
+
+def _require_plan(user: Any, allowed: set[str], feature: str) -> str:
+    plan = _normalize_plan(getattr(user, "plan", "FREE"))
+    if plan not in allowed:
+        raise HTTPException(status_code=403, detail=f"O recurso {feature} não está disponível no plano {plan}.")
+    return plan
+
+
+def _generate_checkout_reference(plan_id: str, user: Optional[Any]) -> str:
+    sanitized_plan = plan_id.strip().lower() if plan_id else "unknown"
+    user_fragment = getattr(user, "id", None) if user is not None else None
+    if not user_fragment:
+        user_fragment = "anonymous"
+    fragment = str(user_fragment).replace(":", "-").replace(" ", "-")
+    token = secrets.token_hex(6)
+    return f"career:{sanitized_plan}:{fragment}:{token}"
 
 
 def _get_auto_apply_limit(plan_value: str) -> Optional[int]:
@@ -372,6 +670,8 @@ def _apply_auto_apply_usage(user_id: str, plan_value: str, *, commit: bool, appl
 
 
 def _get_default_admin_user_id() -> Optional[str]:
+    if not DEFAULT_ADMIN_EMAIL:
+        return None
     admin_user = get_user_by_email(DEFAULT_ADMIN_EMAIL)
     if admin_user is None:
         return None
@@ -423,21 +723,21 @@ class OptimizeCVPayload(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
     resume_text: str = Field(..., alias="resumeText")
-    target_role: str = Field(..., alias="targetRole")
+    target_role: Optional[str] = Field(None, alias="targetRole")
 
 
 class LinkedInAnalysisPayload(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
     linkedin_text: str = Field(..., alias="linkedinText")
-    target_role: str = Field(..., alias="targetRole")
+    target_role: Optional[str] = Field(None, alias="targetRole")
     linkedin_url: Optional[str] = Field(None, alias="linkedinUrl")
 
 
 class JobSearchPayload(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
-    target_role: str = Field(..., alias="targetRole")
+    target_role: Optional[str] = Field(None, alias="targetRole")
     resume_text: Optional[str] = Field(None, alias="resumeText")
 
 
@@ -447,6 +747,15 @@ class AutoApplyActionRequest(BaseModel):
     job_id: Optional[str] = Field(None, alias="jobId")
     job_title: Optional[str] = Field(None, alias="jobTitle")
     application_type: str = Field("auto", alias="applicationType")
+
+
+class AzureApplyAssetsRequest(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    job_title: str = Field(..., alias="jobTitle")
+    company: Optional[str] = None
+    resume_text: Optional[str] = Field(None, alias="resumeText")
+    target_role: Optional[str] = Field(None, alias="targetRole")
 
 
 PDF_MIME_TYPES: set[str] = {
@@ -587,8 +896,15 @@ async def resume_parse(file: UploadFile = File(...)) -> dict[str, str]:
 @app.get("/")
 async def landing_home(request: Request) -> Any:
     if _is_authenticated(request):
-        return RedirectResponse(url="/dashboard", status_code=303)
-    return {"status": "Sentinel OS API Online", "version": "1.0"}
+        return RedirectResponse(url=DEFAULT_POST_LOGIN_ROUTE, status_code=303)
+    now = datetime.utcnow()
+    return _render_template(
+        request,
+        "landing/home.html",
+        {
+            "current_year": now.year,
+        },
+    )
 
 
 @app.get("/pricing", response_class=HTMLResponse)
@@ -604,7 +920,7 @@ async def pricing_page_html(request: Request) -> HTMLResponse:
 @app.get("/login", response_class=HTMLResponse)
 async def login_page(request: Request) -> HTMLResponse:
     if _is_authenticated(request):
-        return RedirectResponse(url="/dashboard", status_code=303)
+        return RedirectResponse(url=DEFAULT_POST_LOGIN_ROUTE, status_code=303)
     desired_next = request.query_params.get("next")
     safe_next = _sanitize_next(desired_next)
     return _render_template(
@@ -619,8 +935,8 @@ async def login_page(request: Request) -> HTMLResponse:
 @app.get("/career", response_class=HTMLResponse)
 async def career_entry(request: Request) -> HTMLResponse:
     if _is_authenticated(request):
-        return RedirectResponse(url="/dashboard", status_code=303)
-    next_hint = request.query_params.get("next") or "/dashboard"
+        return RedirectResponse(url=DEFAULT_POST_LOGIN_ROUTE, status_code=303)
+    next_hint = request.query_params.get("next") or DEFAULT_POST_LOGIN_ROUTE
     safe_next = _sanitize_next(next_hint)
     return _render_template(
         request,
@@ -637,6 +953,33 @@ async def privacy_policy_page(request: Request) -> HTMLResponse:
     return _render_template(
         request,
         "landing/privacy.html",
+        {
+            "current_year": now.year,
+            "last_review": now.strftime("%d/%m/%Y"),
+        },
+    )
+
+
+@app.get("/diretrizes", response_class=HTMLResponse)
+async def guidelines_page(request: Request) -> HTMLResponse:
+    now = datetime.utcnow()
+    return _render_template(
+        request,
+        "landing/guidelines.html",
+        {
+            "current_year": now.year,
+            "last_review": now.strftime("%d/%m/%Y"),
+        },
+    )
+
+
+@app.get("/termos", response_class=HTMLResponse)
+@app.get("/termos-de-uso", response_class=HTMLResponse)
+async def terms_page(request: Request) -> HTMLResponse:
+    now = datetime.utcnow()
+    return _render_template(
+        request,
+        "landing/terms.html",
         {
             "current_year": now.year,
             "last_review": now.strftime("%d/%m/%Y"),
@@ -692,7 +1035,7 @@ async def login_email(
         )
 
     user = auth_result["user"]
-    return _create_authenticated_redirect(sanitized_next or "/dashboard", user.id)
+    return _create_authenticated_redirect(sanitized_next or DEFAULT_POST_LOGIN_ROUTE, user.id)
 
 
 @app.post("/api/auth/register", status_code=201)
@@ -727,7 +1070,7 @@ async def api_auth_register(payload: AuthRegisterRequest) -> JSONResponse:
     except InvalidCredentials:
         auth_result = {"user": user}
 
-    redirect_to = sanitized_next or "/dashboard"
+    redirect_to = sanitized_next or DEFAULT_POST_LOGIN_ROUTE
     response_payload: dict[str, Any] = {
         "redirect_to": redirect_to,
         "plan": _map_plan_to_frontend(getattr(user, "plan", selected_plan)),
@@ -764,7 +1107,7 @@ async def api_auth_login(payload: AuthLoginRequest) -> JSONResponse:
     user = auth_result["user"]
     response = JSONResponse(
         {
-            "redirect_to": sanitized_next or "/dashboard",
+            "redirect_to": sanitized_next or DEFAULT_POST_LOGIN_ROUTE,
             "access_token": auth_result.get("access_token"),
             "refresh_token": auth_result.get("refresh_token"),
         }
@@ -819,23 +1162,28 @@ async def legacy_landing_page(page: str, request: Request) -> HTMLResponse:
     return _render_template(request, f"landing/{page}.html")
 
 
-@app.get("/api/gemini/status")
-async def gemini_status() -> dict[str, Any]:
+@app.get("/api/azure/status")
+async def azure_status() -> dict[str, Any]:
+    configured = has_azure_openai_credentials()
+
     return {
-        "configured": True,
-        "model": os.getenv("GEMINI_ACTIVE_MODEL", "gemini-1.5-pro"),
-        "latency_ms": random.randint(520, 880),
-        "requests_today": random.randint(1100, 2600),
-        "uptime_percent": 99.98,
+        "configured": configured,
+        "deployment": get_default_deployment() if configured else None,
+        "modules": {
+            "resume": configured,
+            "linkedin": configured,
+            "jobs": configured,
+        },
     }
 
 
-@app.post("/api/gemini/optimize-cv")
-async def gemini_optimize_cv(payload: OptimizeCVPayload, request: Request) -> dict[str, Any]:
+@app.post("/api/azure/optimize-cv")
+async def azure_optimize_cv(payload: OptimizeCVPayload, request: Request) -> dict[str, Any]:
     user = _require_authenticated_user(request)
-    plan = _normalize_plan(getattr(user, "plan", "FREE"))
-    if plan not in {"FREE", "PRO", "PREMIUM", "ENTERPRISE", "MASTER", "ADMIN"}:
-        raise HTTPException(status_code=403, detail="Plano inválido para utilizar o otimizador de currículo.")
+    plan = _require_plan(user, {"FREE", "PRO", "PREMIUM", "ENTERPRISE", "MASTER", "ADMIN"}, "ATS de currículo")
+
+    if not has_azure_openai_credentials():
+        raise HTTPException(status_code=503, detail="Integração com Azure OpenAI não configurada.")
 
     try:
         return generate_cv_analysis(payload.resume_text, payload.target_role)
@@ -845,24 +1193,41 @@ async def gemini_optimize_cv(payload: OptimizeCVPayload, request: Request) -> di
         raise HTTPException(status_code=502, detail="Azure OpenAI indisponível no momento.") from exc
 
 
-@app.post("/api/gemini/analyze-linkedin")
-async def gemini_analyze_linkedin(payload: LinkedInAnalysisPayload, request: Request) -> dict[str, Any]:
+@app.post("/api/azure/analyze-linkedin")
+async def azure_analyze_linkedin(payload: LinkedInAnalysisPayload, request: Request) -> dict[str, Any]:
     user = _require_authenticated_user(request)
     plan = _normalize_plan(getattr(user, "plan", "FREE"))
-    if plan == "FREE":
-        raise HTTPException(status_code=403, detail="Plano Free não possui acesso ao analisador de LinkedIn. Realize o upgrade para PRO.")
+    _require_plan(user, {"PRO", "PREMIUM", "ENTERPRISE", "MASTER", "ADMIN"}, "ATS do LinkedIn")
+
+    if not has_azure_openai_credentials():
+        raise HTTPException(status_code=503, detail="Integração com Azure OpenAI não configurada.")
+
+    normalized_linkedin_url: Optional[str] = None
+    raw_linkedin_url = (payload.linkedin_url or "").strip()
+    if raw_linkedin_url:
+        normalized_linkedin_url = normalize_linkedin_url(raw_linkedin_url)
+        if not normalized_linkedin_url:
+            raise HTTPException(
+                status_code=422,
+                detail=(
+                    "Não reconhecemos esse link como um perfil do LinkedIn. "
+                    "Use um endereço no formato https://www.linkedin.com/in/seu-usuario."
+                ),
+            )
 
     try:
-        return analyze_linkedin_profile(payload.linkedin_text, payload.target_role, payload.linkedin_url)
+        return analyze_linkedin_profile(payload.linkedin_text, payload.target_role, normalized_linkedin_url)
     except AzureAIError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
     except Exception as exc:  # pragma: no cover - defensive
         raise HTTPException(status_code=502, detail="Azure OpenAI indisponível no momento.") from exc
 
 
-@app.post("/api/gemini/search-jobs")
-async def gemini_search_jobs(payload: JobSearchPayload, request: Request) -> list[dict[str, Any]]:
+@app.post("/api/azure/search-jobs")
+async def azure_search_jobs(payload: JobSearchPayload, request: Request) -> list[dict[str, Any]]:
     _require_authenticated_user(request)
+    if not has_azure_openai_credentials():
+        raise HTTPException(status_code=503, detail="Integração com Azure OpenAI não configurada.")
     try:
         return search_jobs_suggestions(payload.target_role, payload.resume_text)
     except AzureAIError as exc:
@@ -871,7 +1236,7 @@ async def gemini_search_jobs(payload: JobSearchPayload, request: Request) -> lis
         raise HTTPException(status_code=502, detail="Azure OpenAI indisponível no momento.") from exc
 
 
-@app.post("/api/gemini/auto-apply/validate")
+@app.post("/api/azure/auto-apply/validate")
 async def auto_apply_validate(payload: AutoApplyActionRequest, request: Request) -> dict[str, Any]:
     user = _require_authenticated_user(request)
     plan = _normalize_plan(getattr(user, "plan", "FREE"))
@@ -891,7 +1256,7 @@ async def auto_apply_validate(payload: AutoApplyActionRequest, request: Request)
     return status
 
 
-@app.post("/api/gemini/auto-apply/register")
+@app.post("/api/azure/auto-apply/register")
 async def auto_apply_register(payload: AutoApplyActionRequest, request: Request) -> dict[str, Any]:
     user = _require_authenticated_user(request)
     plan = _normalize_plan(getattr(user, "plan", "FREE"))
@@ -909,6 +1274,40 @@ async def auto_apply_register(payload: AutoApplyActionRequest, request: Request)
         }
     )
     return status
+
+
+@app.post("/api/azure/generate-apply-assets")
+async def azure_generate_apply_assets(payload: AzureApplyAssetsRequest, request: Request) -> dict[str, Any]:
+    user = _require_authenticated_user(request)
+    _require_plan(user, {"PRO", "PREMIUM", "ENTERPRISE", "MASTER", "ADMIN"}, "cartas de apresentação")
+    if not has_azure_openai_credentials():
+        raise HTTPException(status_code=503, detail="Integração com Azure OpenAI não configurada.")
+
+    target_role = payload.target_role or payload.job_title
+    resume_text = payload.resume_text or ""
+
+    try:
+        analysis = generate_cv_analysis(resume_text, target_role)
+    except AzureAIError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    except Exception as exc:  # pragma: no cover - defensive
+        raise HTTPException(status_code=502, detail="Azure OpenAI indisponível no momento.") from exc
+
+    cover_letter = analysis.get("mockCoverLetter") or ""
+    if not cover_letter:
+        company = payload.company or "sua empresa"
+        cover_letter = (
+            f"Prezados recrutadores da {company},\n\n"
+            f"Gostaria de me candidatar à oportunidade '{payload.job_title}'. "
+            "Com base na minha experiência e competências alinhadas ao cargo, estou disponível para uma conversa.\n\n"
+            "Atenciosamente,\nSentinel Candidate"
+        )
+
+    return {
+        "coverLetter": cover_letter,
+        "keywords": analysis.get("keywords", []),
+        "score": analysis.get("score"),
+    }
 
 
 @app.get("/admin", include_in_schema=False)
@@ -934,25 +1333,35 @@ async def admin_page_html(page: str, request: Request) -> HTMLResponse:
 
 
 @app.get("/api/admin/dashboard/metrics")
-async def admin_dashboard_metrics() -> dict[str, Any]:
+async def admin_dashboard_metrics(request: Request) -> dict[str, Any]:
+    _require_plan(_require_authenticated_user(request), {"ADMIN"}, "painel administrativo")
     context = _build_dashboard_context()
-    return context["dashboard_metrics"]
+    integrations = context["integrations"]
+    return {
+        "app_status": context["app_status"],
+        "integrations": integrations,
+        "revenue_caption": context["revenue_caption"],
+        "users_total": len(context["users"]),
+    }
 
 
 @app.get("/api/admin/dashboard/users")
-async def admin_dashboard_users() -> list[dict[str, Any]]:
+async def admin_dashboard_users(request: Request) -> list[dict[str, Any]]:
+    _require_plan(_require_authenticated_user(request), {"ADMIN"}, "painel administrativo")
     context = _build_dashboard_context()
-    return context["dashboard_users"]
+    return context["users"]
 
 
 @app.get("/api/admin/dashboard/logs")
-async def admin_dashboard_logs(limit: int = 10) -> list[dict[str, Any]]:
+async def admin_dashboard_logs(request: Request, limit: int = 10) -> list[dict[str, Any]]:
+    _require_plan(_require_authenticated_user(request), {"ADMIN"}, "painel administrativo")
     logs = _load_recent_error_logs(limit=limit)
     return logs
 
 
 @app.post("/api/admin/users/{user_id}/block")
-async def block_admin_user(user_id: str) -> dict[str, Any]:
+async def block_admin_user(user_id: str, request: Request) -> dict[str, Any]:
+    _require_plan(_require_authenticated_user(request), {"ADMIN"}, "gestão de usuários")
     user = _get_user_by_id(user_id)
     if user is None:
         raise HTTPException(status_code=404, detail="Usuário não encontrado")
@@ -965,7 +1374,8 @@ async def block_admin_user(user_id: str) -> dict[str, Any]:
 
 
 @app.post("/api/admin/users/{user_id}/unblock")
-async def unblock_admin_user(user_id: str) -> dict[str, Any]:
+async def unblock_admin_user(user_id: str, request: Request) -> dict[str, Any]:
+    _require_plan(_require_authenticated_user(request), {"ADMIN"}, "gestão de usuários")
     user = _get_user_by_id(user_id)
     if user is None:
         raise HTTPException(status_code=404, detail="Usuário não encontrado")
@@ -985,7 +1395,8 @@ async def google_login_root(request: Request) -> dict[str, str]:
 async def google_login(request: Request) -> dict[str, str]:
     next_hint = _sanitize_next(request.query_params.get("next"))
     try:
-        authorize_url = _build_google_authorize_url(request, next_hint)
+        state_result = _issue_oauth_state("google", next_hint)
+        authorize_url = _build_google_authorize_url(request, state_result)
     except HTTPException as exc:
         print(f"[OAUTH][google] Falha ao gerar login ({exc.status_code}): {exc.detail}", flush=True)
         raise
@@ -996,40 +1407,43 @@ async def google_login(request: Request) -> dict[str, str]:
 
 
 @app.get("/api/auth/google/callback", name="google_callback")
-async def google_callback(code: Optional[str] = None, state: Optional[str] = None):
+async def google_callback(request: Request, code: Optional[str] = None, state: Optional[str] = None):
     if not code:
         raise HTTPException(status_code=400, detail="Parâmetro 'code' não informado")
-    next_target = _extract_next_from_state(state)
-    user_id = _get_default_admin_user_id()
-    return _create_authenticated_redirect(next_target or "/dashboard", user_id)
 
+    state_data = _validate_oauth_state("google", state)
 
-@app.get("/api/auth/linkedin")
-async def linkedin_login_root(request: Request) -> dict[str, str]:
-    return await linkedin_login(request)
+    client_id = _require_oauth_client_id("Google", "GOOGLE_OAUTH_CLIENT_ID", "GOOGLE_CLIENT_ID")
+    client_secret = _require_oauth_secret("Google", "GOOGLE_CLIENT_SECRET", "GOOGLE_OAUTH_CLIENT_SECRET")
 
+    redirect_uri = _resolve_oauth_redirect(
+        "google",
+        "/api/auth/google/callback",
+        env_keys=("GOOGLE_OAUTH_REDIRECT_URI",),
+        request=request,
+        prefer_canonical=True,
+    )
 
-@app.get("/api/auth/linkedin/login")
-async def linkedin_login(request: Request) -> dict[str, str]:
-    next_hint = _sanitize_next(request.query_params.get("next"))
     try:
-        authorize_url = _build_linkedin_authorize_url(request, next_hint)
-    except HTTPException as exc:
-        print(f"[OAUTH][linkedin] Falha ao gerar login ({exc.status_code}): {exc.detail}", flush=True)
-        raise
-    except Exception as exc:  # pragma: no cover - defensive logging
-        print(f"[OAUTH][linkedin] Erro inesperado ao montar login: {exc}", flush=True)
-        raise HTTPException(status_code=500, detail="Erro ao preparar login com LinkedIn.") from exc
-    return {"provider": "linkedin", "authorization_url": authorize_url}
+        token_payload = google_oauth_client.exchange_code(
+            client_id=client_id,
+            client_secret=client_secret,
+            code=code,
+            redirect_uri=redirect_uri,
+        )
+        userinfo = google_oauth_client.fetch_userinfo(token_payload["access_token"])
+        oauth_user = google_oauth_client.build_user(
+            id_token=token_payload["id_token"],
+            userinfo=userinfo,
+            client_id=client_id,
+            expected_nonce=state_data.nonce,
+        )
+    except OAuthExchangeError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
 
-
-@app.get("/api/auth/linkedin/callback", name="linkedin_callback")
-async def linkedin_callback(code: Optional[str] = None, state: Optional[str] = None):
-    if not code:
-        raise HTTPException(status_code=400, detail="Parâmetro 'code' não informado")
-    next_target = _extract_next_from_state(state)
-    user_id = _get_default_admin_user_id()
-    return _create_authenticated_redirect(next_target or "/dashboard", user_id)
+    user = _sync_oauth_user(oauth_user)
+    next_target = state_data.next_path or DEFAULT_POST_LOGIN_ROUTE
+    return _create_authenticated_redirect(next_target, user.id)
 
 
 class MercadoPagoCheckoutRequest(BaseModel):
@@ -1072,9 +1486,16 @@ def _build_mercadopago_checkout(payload: MercadoPagoCheckoutRequest, request: Re
         "metadata": {"plan_id": plan_id},
     }
 
+    external_reference = _generate_checkout_reference(plan_id, user)
+    preference_data["external_reference"] = external_reference
+    preference_data["metadata"]["external_reference"] = external_reference
+
     if user is not None:
         preference_data["metadata"]["user_id"] = getattr(user, "id", None)
         preference_data["metadata"]["user_email"] = getattr(user, "email", None)
+        user_plan = getattr(user, "plan", None)
+        if user_plan:
+            preference_data["metadata"]["user_plan"] = user_plan
 
     payer_email = os.getenv("MERCADOPAGO_PAYER_EMAIL")
     if payer_email:
@@ -1124,14 +1545,87 @@ async def create_mercadopago_checkout(payload: MercadoPagoCheckoutRequest, reque
 
 
 @app.post("/api/checkout/mercadopago/webhook")
-async def mercadopago_webhook(payload: Dict[str, Any]) -> dict[str, Any]:
-    event_id = payload.get("id") or payload.get("data", {}).get("id")
-    status = payload.get("type") or payload.get("action")
+async def mercadopago_webhook(request: Request) -> JSONResponse:
+    raw_body = await request.body()
+    if not raw_body:
+        return JSONResponse({"status": "ignored", "reason": "empty_body"}, status_code=202)
+
+    secret = os.getenv("MERCADOPAGO_WEBHOOK_SECRET")
+    signature_valid, signature_reason = validate_webhook_signature(raw_body, request.headers, secret)
+    if not signature_valid:
+        raise HTTPException(status_code=401, detail=f"Assinatura inválida do webhook ({signature_reason}).")
+
+    try:
+        payload = json.loads(raw_body.decode("utf-8"))
+    except json.JSONDecodeError as exc:
+        raise HTTPException(status_code=400, detail="Payload inválido recebido do Mercado Pago.") from exc
+
+    action = payload.get("action") or payload.get("type")
+    if action and "payment" not in str(action).lower():
+        return JSONResponse(
+            {
+                "status": "ignored",
+                "reason": "unsupported_action",
+                "action": action,
+            },
+            status_code=202,
+        )
+
+    payment_data = payload.get("data") if isinstance(payload.get("data"), dict) else {}
+    payment_id = payment_data.get("id") or payload.get("id")
+    if not payment_id:
+        raise HTTPException(status_code=400, detail="ID do pagamento ausente no payload do webhook.")
+
+    access_token = _get_mercadopago_access_token()
+    if not access_token:
+        raise HTTPException(status_code=503, detail="MERCADOPAGO_ACCESS_TOKEN não configurado")
+
+    try:
+        payment = fetch_payment(access_token, str(payment_id))
+    except MercadoPagoError as exc:
+        print(f"[MERCADOPAGO][webhook] Falha ao consultar pagamento {payment_id}: {exc}", flush=True)
+        raise HTTPException(status_code=502, detail="Erro ao consultar pagamento no Mercado Pago.") from exc
+
+    normalized_status = normalize_payment_status(payment.status)
+
+    event_id = payload.get("id")
+    already_processed, stored_record = _record_mercadopago_event(
+        payment,
+        event_id=str(event_id) if event_id is not None else None,
+        action=str(action) if action is not None else None,
+        normalized_status=normalized_status,
+    )
+
+    metadata = payment.metadata or {}
+    user_id = metadata.get("user_id")
+    plan_code = _map_payment_plan_id(metadata.get("plan_id"))
+
+    plan_applied = False
+    if not already_processed and normalized_status == "approved":
+        plan_applied = _apply_user_plan_change(user_id, plan_code)
+
+    response_payload = {
+        "status": "processed",
+        "payment_id": payment.payment_id,
+        "event_id": str(event_id) if event_id is not None else None,
+        "action": action,
+        "normalized_status": normalized_status,
+        "raw_status": payment.status,
+        "already_processed": already_processed,
+        "plan_applied": plan_applied,
+        "user_id": user_id,
+        "plan_code": plan_code,
+        "metadata": {key: metadata[key] for key in metadata if key in {"plan_id", "user_id", "user_email"}},
+        "stored": stored_record,
+    }
+
     print(
-        f"[MERCADOPAGO][webhook] Evento recebido: id={event_id} status={status}",
+        "[MERCADOPAGO][webhook] Processado pagamento="
+        f"{payment.payment_id} status={normalized_status} already_processed={already_processed} plan_applied={plan_applied}",
         flush=True,
     )
-    return {"status": "received", "event_id": event_id, "action": status}
+
+    return JSONResponse(response_payload, status_code=202)
 
 
 @app.get("/api/checkout/mercadopago/webhook")
@@ -1171,9 +1665,119 @@ def _build_absolute_url(path: str, request: Request) -> str:
     return urljoin(normalized_base, normalized_path.lstrip("/"))
 
 
-def _format_brl(amount: float) -> str:
-    integer_part, _, cents = f"{amount:.2f}".partition(".")
-    integer_with_sep = f"{int(integer_part):,}".replace(",", ".")
+def _get_oauth_state_base(provider: str) -> str:
+    normalized = provider.lower()
+    if normalized == "google":
+        return (
+            _get_env_value("GOOGLE_OAUTH_DEFAULT_STATE", "GOOGLE_DEFAULT_STATE")
+            or "sentinel-career"
+        )
+    return "sentinel-career"
+
+
+def _normalize_canonical_base_url() -> str:
+    override = _get_env_value("SENTINEL_CANONICAL_URL", "SENTINEL_OAUTH_BASE_URL")
+    candidate = override.strip() if override else f"https://{CANONICAL_DOMAIN}"
+    if "://" not in candidate:
+        candidate = f"https://{candidate}"
+    parsed = urlparse(candidate)
+    host = parsed.netloc or parsed.path
+    host = host.lower()
+    if host.startswith("www."):
+        host = host[4:]
+    return f"https://{host.strip('/')}"
+
+
+def _build_canonical_oauth_url(path: str) -> str:
+    base = _normalize_canonical_base_url()
+    return urljoin(f"{base}/", path.lstrip("/"))
+
+
+def _issue_oauth_state(provider: str, next_hint: Optional[str]) -> OAuthStateResult:
+    base_state = _get_oauth_state_base(provider)
+    return oauth_state_store.issue(provider, base_state, next_hint)
+
+
+def _validate_oauth_state(provider: str, received_state: Optional[str]) -> OAuthStateData:
+    base_state = _get_oauth_state_base(provider)
+    try:
+        return oauth_state_store.consume(provider, base_state, received_state)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Fluxo OAuth inválido ou expirado.")
+
+
+def _load_json_records(*paths: Path) -> List[dict[str, Any]]:
+    for path in paths:
+        if path is None:
+            continue
+        try:
+            with path.open("r", encoding="utf-8") as handler:
+                payload = json.load(handler)
+        except FileNotFoundError:
+            continue
+        except Exception as exc:  # pragma: no cover - defensive logging
+            print(f"[ADMIN][data] Falha ao ler {path}: {exc}", flush=True)
+            return []
+        if isinstance(payload, list):
+            return [item for item in payload if isinstance(item, dict)]
+        print(f"[ADMIN][data] Conteúdo inesperado em {path}", flush=True)
+        return []
+    return []
+
+
+def _load_career_health_history() -> List[dict[str, Any]]:
+    return _load_json_records(*CAREER_HEALTH_HISTORY_PATHS)
+
+
+def _parse_iso_datetime(value: Optional[str]) -> Optional[datetime]:
+    if not value:
+        return None
+    normalized = value.replace("Z", "+00:00")
+    try:
+        parsed = datetime.fromisoformat(normalized)
+        if parsed.tzinfo is None:
+            # Assume UTC for historic data where timezone was omitted.
+            return parsed.replace(tzinfo=timezone.utc)
+        return parsed
+    except ValueError:
+        return None
+
+
+def _format_payments_caption(total_confirmed: int) -> str:
+    if total_confirmed == 0:
+        return "Nenhum pagamento confirmado"
+    if total_confirmed == 1:
+        return "1 pagamento confirmado"
+    return f"{total_confirmed} pagamentos confirmados"
+
+
+def _career_health_history_sort_key(entry: dict[str, Any]) -> float:
+    timestamp_value = entry.get("timestamp") or entry.get("created_at")
+    parsed = _parse_iso_datetime(timestamp_value)
+    if parsed:
+        return parsed.timestamp()
+    return 0.0
+
+
+def _prepare_career_health_history(history: List[dict[str, Any]], limit: int = 10) -> List[dict[str, Any]]:
+    sorted_history = sorted(history, key=_career_health_history_sort_key, reverse=True)
+    return sorted_history[:limit]
+
+
+def _format_brl(amount: Any) -> str:
+    if isinstance(amount, Decimal):
+        normalized = amount.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+        amount_text = f"{normalized:.2f}"
+    else:
+        try:
+            amount_text = f"{float(amount):.2f}"
+        except (TypeError, ValueError):
+            amount_text = "0.00"
+    integer_part, _, cents = amount_text.partition(".")
+    try:
+        integer_with_sep = f"{int(integer_part):,}".replace(",", ".")
+    except ValueError:
+        integer_with_sep = "0"
     return f"R$ {integer_with_sep},{cents}"
 
 
@@ -1202,14 +1806,14 @@ def _timestamp_sort_key(timestamp: Optional[str]) -> float:
 def _load_recent_error_logs(limit: int = 4) -> List[dict[str, Any]]:
     log_path = PROJECT_ROOT / "logs" / "sentinel-career-errors.log"
     if not log_path.exists():
-        return DEFAULT_DASHBOARD_ERROR_LOGS[:limit]
+        return []
 
     try:
         with log_path.open("r", encoding="utf-8") as handler:
             lines = [line.strip() for line in handler.readlines() if line.strip()]
     except Exception as exc:  # pragma: no cover - I/O defensive
         print(f"[ADMIN][logs] Falha ao ler arquivo de logs: {exc}", flush=True)
-        return DEFAULT_DASHBOARD_ERROR_LOGS[:limit]
+        return []
 
     entries: List[dict[str, Any]] = []
     for raw in lines[-limit:][::-1]:
@@ -1228,67 +1832,21 @@ def _load_recent_error_logs(limit: int = 4) -> List[dict[str, Any]]:
             }
         )
 
-    return entries or DEFAULT_DASHBOARD_ERROR_LOGS[:limit]
+    return entries
 
 
 def _build_dashboard_context() -> dict[str, Any]:
-    users = list(list_users())
-    active_users = [user for user in users if getattr(user, "is_active", True)]
-    total_users = len(users)
-    blocked_users = total_users - len(active_users)
+    try:
+        users = list(list_users())
+    except Exception as exc:  # pragma: no cover - defensive logging
+        print(f"[ADMIN][dashboard] Falha ao carregar usuários: {exc}", flush=True)
+        users = []
 
-    pro_plans = {"PRO", "PREMIUM"}
-    enterprise_plans = {"ENTERPRISE", "MASTER", "ADMIN"}
-
-    pro_count = sum(1 for user in active_users if getattr(user, "plan", "").upper() in pro_plans)
-    enterprise_count = sum(1 for user in active_users if getattr(user, "plan", "").upper() in enterprise_plans)
-
-    revenue_total = (
-        pro_count * MERCADO_PAGO_PLANS["pro"]["price"]
-        + enterprise_count * MERCADO_PAGO_PLANS["enterprise"]["price"]
+    sorted_users = sorted(
+        users,
+        key=lambda user: _timestamp_sort_key(getattr(user, "last_login", None)),
+        reverse=True,
     )
-
-    sync_time = os.getenv("MERCADOPAGO_LAST_SYNC", "há 4 minutos")
-    last_event = os.getenv("MERCADOPAGO_LAST_EVENT", "6 minutos")
-    ai_status = os.getenv("GEMINI_STATUS", "Operacional")
-    ai_usage = os.getenv("GEMINI_USAGE_PERCENT", "92% SLA")
-    ai_detail = os.getenv("GEMINI_USAGE_DETAIL", "Latência média 620 ms · 1,3k requisições em 24h")
-
-    onboarding_pending = os.getenv("DASHBOARD_ONBOARDING_PENDING", "12")
-    support_critical = os.getenv("DASHBOARD_SUPPORT_CRITICAL", "3")
-
-    metrics = {
-        "total_users": {
-            "value": str(total_users),
-            "caption": f"{len(active_users)} ativos · {blocked_users} bloqueados",
-        },
-        "active_subscriptions": {
-            "value": str(pro_count + enterprise_count),
-            "pro": str(pro_count),
-            "enterprise": str(enterprise_count),
-        },
-        "revenue": {
-            "value": _format_brl(revenue_total),
-            "caption": f"Sincronizado com Mercado Pago · {sync_time}",
-            "sync_time": sync_time,
-            "last_event": last_event,
-        },
-        "ai_consumption": {
-            "value": ai_usage,
-            "status": ai_status,
-            "detail": ai_detail,
-        },
-        "onboarding": {
-            "pending": onboarding_pending,
-            "caption": "Convites aguardando validação de identidade.",
-        },
-        "support": {
-            "critical": support_critical,
-            "caption": "Escalonamento automático para o time SRE.",
-        },
-    }
-
-    sorted_users = sorted(users, key=lambda user: _timestamp_sort_key(getattr(user, "last_login", None)), reverse=True)
     user_rows = [
         {
             "id": user.id,
@@ -1298,15 +1856,67 @@ def _build_dashboard_context() -> dict[str, Any]:
             "last_login": _humanize_timestamp(getattr(user, "last_login", None)),
             "is_active": getattr(user, "is_active", True),
         }
-        for user in sorted_users[:6]
+        for user in sorted_users[:8]
     ]
 
+    azure_configured = has_azure_openai_credentials()
+    google_configured = _has_oauth_configuration("GOOGLE_OAUTH_CLIENT_ID", "GOOGLE_CLIENT_ID")
+
+    mercadopago_summary = evaluate_mercadopago(
+        _get_env_value("MERCADOPAGO_ACCESS_TOKEN"),
+        environment=os.getenv("ENVIRONMENT"),
+    )
+    last_payment_display = "Sem dados"
+    if mercadopago_summary.last_payment_at:
+        parsed_dt = _parse_iso_datetime(mercadopago_summary.last_payment_at)
+        if parsed_dt:
+            last_payment_display = parsed_dt.astimezone(timezone.utc).strftime("%d/%m/%Y %H:%M")
+
+    revenue_caption = _format_payments_caption(mercadopago_summary.confirmed_count)
+
+    mercadopago_card = {
+        "status": mercadopago_summary.status,
+        "availability": mercadopago_summary.availability,
+        "detail": mercadopago_summary.detail,
+        "confirmed_total": _format_brl(mercadopago_summary.total_confirmed),
+        "confirmed_count": mercadopago_summary.confirmed_count,
+        "last_payment": last_payment_display,
+    }
+
+    mercadopago_payments = [
+        {
+            "payment_id": record.payment_id or "—",
+            "status": (record.status or "indefinido").upper(),
+            "amount": _format_brl(record.amount) if record.amount is not None else "—",
+            "created_at": _humanize_timestamp(record.created_at),
+            "payer_email": record.payer_email or "—",
+        }
+        for record in mercadopago_summary.payments[:5]
+    ]
+
+    career_health_history = _prepare_career_health_history(_load_career_health_history())
     logs = _load_recent_error_logs()
 
+    app_status = {
+        "status": "online",
+        "checked_at": datetime.now(timezone.utc).strftime("%d/%m/%Y %H:%M UTC"),
+    }
+
+    integrations = {
+        "azure_openai": "configured" if azure_configured else "not_configured",
+        "google_oauth": "configured" if google_configured else "not_configured",
+        "linkedin_ats": "configured" if azure_configured else "not_configured",
+        "mercado_pago": mercadopago_card,
+    }
+
     return {
-        "dashboard_metrics": metrics,
-        "dashboard_users": user_rows,
-        "dashboard_logs": logs,
+        "app_status": app_status,
+        "users": user_rows,
+        "integrations": integrations,
+        "mercadopago_payments": mercadopago_payments,
+        "revenue_caption": revenue_caption,
+        "career_health_history": career_health_history,
+        "logs": logs,
     }
 
 
@@ -1324,16 +1934,40 @@ def _ensure_callback_path(provider: str, callback_url: str, expected_path: str) 
     return callback_url
 
 
-def _build_google_authorize_url(request: Request, next_hint: Optional[str] = None) -> str:
-    client_id = _get_env_value("GOOGLE_OAUTH_CLIENT_ID", "GOOGLE_CLIENT_ID")
-    if not client_id:
-        raise HTTPException(status_code=503, detail="Google OAuth não configurado")
+def _resolve_oauth_redirect(
+    provider: str,
+    callback_path: str,
+    *,
+    env_keys: tuple[str, ...],
+    request: Optional[Request],
+    prefer_canonical: bool,
+) -> str:
+    override = _get_env_value(*env_keys)
+    if override:
+        return _ensure_callback_path(provider, override, callback_path)
 
-    base_state = os.getenv("GOOGLE_OAUTH_DEFAULT_STATE") or os.getenv("GOOGLE_DEFAULT_STATE") or "sentinel-career"
-    state_value = _encode_state_with_next(base_state, next_hint)
+    if prefer_canonical:
+        canonical = _build_canonical_oauth_url(callback_path)
+        return _ensure_callback_path(provider, canonical, callback_path)
+
+    if request is None:
+        raise HTTPException(status_code=500, detail="redirect_uri não pôde ser determinado.")
+
+    dynamic = _build_absolute_url(callback_path, request)
+    return _ensure_callback_path(provider, dynamic, callback_path)
+
+
+def _build_google_authorize_url(request: Request, state_result: OAuthStateResult) -> str:
+    client_id = _require_oauth_client_id("Google", "GOOGLE_OAUTH_CLIENT_ID", "GOOGLE_CLIENT_ID")
 
     callback_path = "/api/auth/google/callback"
-    redirect_uri = _ensure_callback_path("google", _build_absolute_url(callback_path, request), callback_path)
+    redirect_uri = _resolve_oauth_redirect(
+        "google",
+        callback_path,
+        env_keys=("GOOGLE_OAUTH_REDIRECT_URI",),
+        request=request,
+        prefer_canonical=True,
+    )
 
     params = {
         "client_id": client_id,
@@ -1342,30 +1976,11 @@ def _build_google_authorize_url(request: Request, next_hint: Optional[str] = Non
         "scope": os.getenv("GOOGLE_OAUTH_SCOPE", "openid email profile"),
         "access_type": "offline",
         "prompt": os.getenv("GOOGLE_OAUTH_PROMPT", "consent"),
-        "state": state_value,
+        "state": state_result.state_value,
+        "nonce": state_result.nonce,
     }
     return f"{GOOGLE_OAUTH_AUTHORIZE_URL}?{urlencode(params)}"
 
-
-def _build_linkedin_authorize_url(request: Request, next_hint: Optional[str] = None) -> str:
-    client_id = _get_env_value("LINKEDIN_OAUTH_CLIENT_ID", "LINKEDIN_CLIENT_ID")
-    if not client_id:
-        raise HTTPException(status_code=503, detail="LinkedIn OAuth não configurado")
-
-    base_state = os.getenv("LINKEDIN_OAUTH_DEFAULT_STATE") or os.getenv("LINKEDIN_DEFAULT_STATE") or "sentinel-career"
-    state_value = _encode_state_with_next(base_state, next_hint)
-
-    callback_path = "/api/auth/linkedin/callback"
-    redirect_uri = _ensure_callback_path("linkedin", _build_absolute_url(callback_path, request), callback_path)
-
-    params = {
-        "response_type": "code",
-        "client_id": client_id,
-        "redirect_uri": redirect_uri,
-        "scope": os.getenv("LINKEDIN_OAUTH_SCOPE", "r_liteprofile r_emailaddress"),
-        "state": state_value,
-    }
-    return f"{LINKEDIN_OAUTH_AUTHORIZE_URL}?{urlencode(params)}"
 
 
 @app.get("/health")
@@ -1434,6 +2049,57 @@ def _is_valid_email(email: str) -> bool:
     return bool(local_part and "." in domain)
 
 
+def _touch_last_login(user) -> None:
+    now_iso = datetime.now(timezone.utc).isoformat()
+    try:
+        update_last_login(user.id)
+    except Exception as exc:
+        print(f"[AUTH] Falha ao atualizar last_login para {user.email}: {exc}", flush=True)
+    finally:
+        user.last_login = now_iso
+
+
+def _sync_oauth_user(oauth_user: OAuthUser):
+    email = oauth_user.email.strip().lower()
+    if not _is_valid_email(email):
+        raise HTTPException(status_code=400, detail="E-mail inválido retornado pelo provedor OAuth.")
+
+    try:
+        existing = get_user_by_email(email)
+    except Exception as exc:
+        print(f"[OAUTH][{oauth_user.provider}] Falha ao consultar usuário {email}: {exc}", flush=True)
+        existing = auth_module.USERS_DB.get(email)
+    if not existing:
+        existing = auth_module.USERS_DB.get(email)
+    if existing:
+        if not getattr(existing, "is_active", True):
+            raise HTTPException(status_code=403, detail="Usuário bloqueado. Contate o administrador.")
+        _touch_last_login(existing)
+        return existing
+
+    display_name = oauth_user.name or email.split("@", 1)[0]
+    random_password = secrets.token_urlsafe(32)
+
+    try:
+        user = register_user(display_name, email, random_password, plan="FREE")
+    except UserExistsError:
+        try:
+            user = get_user_by_email(email)
+        except Exception as exc:
+            print(f"[OAUTH][{oauth_user.provider}] Falha ao recuperar usuário existente {email}: {exc}", flush=True)
+            user = auth_module.USERS_DB.get(email)
+        if user is None:
+            user = auth_module.USERS_DB.get(email)
+        if user is None:
+            raise HTTPException(status_code=500, detail="Falha ao sincronizar usuário OAuth.")
+    except Exception as exc:
+        print(f"[OAUTH][{oauth_user.provider}] Falha ao registrar usuário: {exc}", flush=True)
+        raise HTTPException(status_code=502, detail="Erro ao registrar usuário OAuth.") from exc
+
+    _touch_last_login(user)
+    return user
+
+
 def _invalidate_sessions_for_user(user_id: str) -> None:
     tokens_to_remove = [token for token, owner in SESSION_OWNERS.items() if owner == user_id]
     for token in tokens_to_remove:
@@ -1459,7 +2125,7 @@ def _issue_session_cookie(response: Response, user_id: Optional[str] = None) -> 
 
 
 def _create_authenticated_redirect(target: str, user_id: Optional[str] = None) -> RedirectResponse:
-    safe_target = target or "/dashboard"
+    safe_target = target or DEFAULT_POST_LOGIN_ROUTE
     response = RedirectResponse(url=safe_target, status_code=302)
     _issue_session_cookie(response, user_id)
     return response
@@ -1490,19 +2156,5 @@ def _is_authenticated(request: Request) -> bool:
     return bool(header_token and _is_session_valid(header_token))
 
 
-def _encode_state_with_next(base_state: str, next_hint: Optional[str]) -> str:
-    if not next_hint:
-        return base_state
-    encoded_next = quote(next_hint, safe="/?:=&%")
-    return f"{base_state}|next={encoded_next}"
-
-
 def _extract_next_from_state(state: Optional[str]) -> Optional[str]:
-    if not state or "|next=" not in state:
-        return None
-    _, _, encoded = state.partition("|next=")
-    try:
-        decoded = unquote(encoded)
-    except Exception:
-        return None
-    return _sanitize_next(decoded)
+    return None

@@ -85,3 +85,12 @@ def get_default_deployment() -> str:
     """Return the default deployment name used for chat completions."""
 
     return _get_deployment_name()
+
+
+def has_azure_openai_credentials() -> bool:
+    """Verify whether Azure OpenAI credentials are present in the environment."""
+
+    load_dotenv("/home/sentineladmin/sentinel-os/.env", override=True)
+    api_key = os.getenv("AZURE_OPENAI_API_KEY")
+    azure_endpoint = os.getenv("AZURE_OPENAI_ENDPOINT")
+    return bool(api_key and azure_endpoint)

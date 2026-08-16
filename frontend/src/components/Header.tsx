@@ -1,16 +1,15 @@
 import React from "react";
-import { Globe, CheckCircle2, Cpu, Cloud } from "lucide-react";
+import { Globe, CheckCircle2, Cpu, Cloud, AlertTriangle } from "lucide-react";
 import { PlanType } from "../types";
 import logoCareerIcon from "../assets/images/logo-career-icon.png";
 
 interface HeaderProps {
   currentPlan: PlanType;
-  setPlan: (plan: PlanType) => void;
-  geminiConfigured: boolean;
+  azureConfigured: boolean;
   userEmail: string;
 }
 
-export default function Header({ currentPlan, setPlan, geminiConfigured, userEmail }: HeaderProps) {
+export default function Header({ currentPlan, azureConfigured, userEmail }: HeaderProps) {
   return (
     <header id="sentinel-header" className="border-b border-cyan-500/20 bg-slate-950/80 backdrop-blur-md sticky top-0 z-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -50,38 +49,20 @@ export default function Header({ currentPlan, setPlan, geminiConfigured, userEma
             <div className="flex items-center space-x-2">
               <Cpu className="h-3.5 w-3.5 text-cyan-400" />
               <span className="text-slate-400 font-mono text-[11px]">IA:</span>
-              <span className="flex items-center space-x-1 text-cyan-400 font-mono bg-cyan-950/30 px-2 py-0.5 rounded border border-cyan-500/20 text-[10px]">
-                <CheckCircle2 className="h-3 w-3 text-cyan-400" />
-                <span>Azure OpenAI GPT-4o</span>
+              <span
+                className={`flex items-center space-x-1 font-mono px-2 py-0.5 rounded border text-[10px] ${
+                  azureConfigured
+                    ? "text-cyan-400 bg-cyan-950/30 border-cyan-500/20"
+                    : "text-amber-400 bg-amber-950/20 border-amber-500/20"
+                }`}
+              >
+                {azureConfigured ? (
+                  <CheckCircle2 className="h-3 w-3 text-cyan-400" />
+                ) : (
+                  <AlertTriangle className="h-3 w-3 text-amber-400" />
+                )}
+                <span>{azureConfigured ? "Azure OpenAI GPT-4o" : "Azure OpenAI Offline"}</span>
               </span>
-            </div>
-
-            <div className="flex items-center space-x-2 border-l border-slate-850 pl-5">
-              <Cloud className="h-3.5 w-3.5 text-blue-400" />
-              <span className="text-slate-400 font-mono text-[11px]">Hospedagem:</span>
-              <span className="flex items-center space-x-1 text-blue-400 font-mono bg-blue-950/20 px-2 py-0.5 rounded border border-blue-500/30 text-[10px]">
-                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse mr-1"></span>
-                <span>Azure VM Active</span>
-              </span>
-            </div>
-
-            <div className="flex items-center space-x-2 border-l border-slate-850 pl-5">
-              <span className="text-slate-400 font-mono text-[11px]">Nível:</span>
-              <div className="flex space-x-1 bg-slate-900 p-0.5 rounded border border-slate-800">
-                {(["free", "pro", "enterprise"] as PlanType[]).map((p) => (
-                  <button
-                    key={p}
-                    onClick={() => setPlan(p)}
-                    className={`px-2 py-0.5 rounded text-[10px] font-mono capitalize transition-all ${
-                      currentPlan === p
-                        ? "bg-cyan-500 text-slate-950 font-bold"
-                        : "text-slate-400 hover:text-white"
-                    }`}
-                  >
-                    {p}
-                  </button>
-                ))}
-              </div>
             </div>
           </div>
 

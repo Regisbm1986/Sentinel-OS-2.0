@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import type { ReactNode } from "react";
 import { Navigate, Route, Routes, useLocation } from "react-router-dom";
-import { Briefcase, FileText, Linkedin, FolderGit2, Cpu, Sparkles, ChevronRight, AlertTriangle, ExternalLink } from "lucide-react";
+import { Briefcase, FileText, Linkedin, FolderGit2, Cpu, ChevronRight, AlertTriangle, ExternalLink } from "lucide-react";
 import Header from "./components/Header";
 import PlanSelector from "./components/PlanSelector";
 import ResumeATS from "./components/ResumeATS";
@@ -36,10 +36,6 @@ function DashboardApp() {
     return localStorage.getItem("sentinel_resume") || "";
   });
 
-  const [targetRole, setTargetRole] = useState(() => {
-    return localStorage.getItem("sentinel_target_role") || "Analista de Cibersegurança";
-  });
-
   const [cvReport, setCvReport] = useState<OptimizationReport | null>(() => {
     const saved = localStorage.getItem("sentinel_cv_report");
     return saved ? JSON.parse(saved) : null;
@@ -63,54 +59,18 @@ function DashboardApp() {
     return saved ? JSON.parse(saved) : [];
   });
 
+  const [jobQuery, setJobQuery] = useState(() => {
+    return localStorage.getItem("sentinel_job_query") || "";
+  });
+
   const [applications, setApplications] = useState<Application[]>(() => {
     const saved = localStorage.getItem("sentinel_apps");
-    if (saved) return JSON.parse(saved);
-    
-    // Seed initial applications to make the Kanban feel live and premium right away
-    return [
-      {
-        id: "app-seed-1",
-        jobId: "job-sentinel-1",
-        jobTitle: "Analista de Cibersegurança Jr/Pl (Sentinel OS)",
-        company: "Sentinel IA",
-        location: "Remoto",
-        status: "interview",
-        appliedAt: "08/07/2026",
-        atsScore: 94,
-        notes: "Entrevista técnica marcada para o dia 12/07/2026 às 14:00."
-      },
-      {
-        id: "app-seed-2",
-        jobId: "job-2",
-        jobTitle: "Cloud Engineer Security Specialist",
-        company: "CyberGuard Solutions",
-        location: "Híbrido",
-        status: "applied",
-        appliedAt: "07/07/2026",
-        atsScore: 81
-      }
-    ];
+    return saved ? JSON.parse(saved) : [];
   });
 
   const [logs, setLogs] = useState<LogEntry[]>(() => {
     const saved = localStorage.getItem("sentinel_logs");
-    if (saved) return JSON.parse(saved);
-
-    return [
-      {
-        id: "log-1",
-        timestamp: "17:18:10",
-        type: "info",
-        message: "Inicializando plataforma Sentinel Career v2.5."
-      },
-      {
-        id: "log-2",
-        timestamp: "17:18:11",
-        type: "success",
-        message: "Conectado perfeitamente com a plataforma sentinel-os.ia.br."
-      }
-    ];
+    return saved ? JSON.parse(saved) : [];
   });
 
   const [autoAppliesUsed, setAutoAppliesUsed] = useState(() => {
@@ -182,7 +142,7 @@ function DashboardApp() {
 
   // --- Session Status & Navigation State ---
   const [activeTab, setActiveTab] = useState<"dashboard" | "resume" | "linkedin" | "jobs">("dashboard");
-  const [geminiConfigured, setGeminiConfigured] = useState(false);
+  const [azureConfigured, setAzureConfigured] = useState(false);
   const [selectedJob, setSelectedJob] = useState<Job | null>(null);
   const [isApplying, setIsApplying] = useState(false);
 
@@ -199,10 +159,6 @@ function DashboardApp() {
   useEffect(() => {
     localStorage.setItem("sentinel_resume", resumeText);
   }, [resumeText]);
-
-  useEffect(() => {
-    localStorage.setItem("sentinel_target_role", targetRole);
-  }, [targetRole]);
 
   useEffect(() => {
     localStorage.setItem("sentinel_cv_report", cvReport ? JSON.stringify(cvReport) : "");
@@ -225,6 +181,10 @@ function DashboardApp() {
   }, [jobs]);
 
   useEffect(() => {
+    localStorage.setItem("sentinel_job_query", jobQuery);
+  }, [jobQuery]);
+
+  useEffect(() => {
     localStorage.setItem("sentinel_apps", JSON.stringify(applications));
   }, [applications]);
 
@@ -240,15 +200,24 @@ function DashboardApp() {
     syncSession();
   }, [syncSession]);
 
-  // Check Gemini Status
+  // Check Azure Status
+  const [atsAvailable, setAtsAvailable] = useState(false);
+  const [linkedinAvailable, setLinkedinAvailable] = useState(false);
+  const [jobsAvailable, setJobsAvailable] = useState(false);
   useEffect(() => {
     const checkStatus = async () => {
       try {
-        const response = await apiFetch("/api/gemini/status");
+        const response = await apiFetch("/api/azure/status");
         const data = await response.json();
-        setGeminiConfigured(data.configured);
+        setAzureConfigured(Boolean(data.configured));
+        setAtsAvailable(Boolean(data.modules?.resume));
+        setLinkedinAvailable(Boolean(data.modules?.linkedin));
+        setJobsAvailable(Boolean(data.modules?.jobs));
       } catch (err) {
-        setGeminiConfigured(false);
+        setAzureConfigured(false);
+        setAtsAvailable(false);
+        setLinkedinAvailable(false);
+        setJobsAvailable(false);
       }
     };
     checkStatus();
@@ -275,21 +244,34 @@ function DashboardApp() {
 
   // 1. Optimize Resume (CV)
   const handleOptimizeCV = async () => {
-    if (!resumeText.trim() || !targetRole.trim()) return;
+    if (!resumeText.trim()) {
+      addLog("warn", "Informe o texto do currículo antes de otimizar.");
+      return;
+    }
+    if (!atsAvailable) {
+      addLog("warn", "Motor ATS não configurado. Configure a integração antes de executar análises.");
+      return;
+    }
     setIsOptimizingCV(true);
-    addLog("info", `Iniciando análise profunda de currículo para vaga de: ${targetRole}`);
+    addLog("info", "Iniciando análise profunda de currículo com o motor ATS real.");
 
     try {
-      const response = await apiFetch("/api/gemini/optimize-cv", {
+      const response = await apiFetch("/api/azure/optimize-cv", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ resumeText, targetRole }),
+        body: JSON.stringify({ resumeText }),
       });
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        const detail = typeof errorData?.detail === "string" ? errorData.detail : "Falha ao otimizar currículo.";
+        addLog("warn", detail);
+        return;
+      }
       const data: OptimizationReport = await response.json();
       setCvReport(data);
-      addLog("success", `Relatório ATS completo para "${targetRole}". Score calculado: ${data.score}%`);
+      addLog("success", `Relatório ATS concluído com sucesso. Score calculado: ${data.score}%`);
     } catch (err) {
-      addLog("error", "Erro ao escanear currículo no servidor. Usando dados resilientes.");
+      addLog("error", "Erro ao escanear currículo no servidor. Nenhum dado simulado será exibido.");
     } finally {
       setIsOptimizingCV(false);
     }
@@ -303,21 +285,33 @@ function DashboardApp() {
       alert(message);
       return;
     }
-    if (!linkedinText.trim() || !targetRole.trim()) return;
+    if (!linkedinText.trim()) {
+      addLog("warn", "Cole o conteúdo do seu perfil antes de otimizar.");
+      return;
+    }
+    if (!linkedinAvailable) {
+      addLog("warn", "Integração LinkedIn não configurada. Configure credenciais oficiais.");
+      return;
+    }
     setIsOptimizingLinkedIn(true);
     addLog("info", "Iniciando otimizador de visibilidade de perfil do LinkedIn");
 
     try {
       const sanitizedUrl = linkedinUrl.trim();
-      const response = await apiFetch("/api/gemini/analyze-linkedin", {
+      const response = await apiFetch("/api/azure/analyze-linkedin", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           linkedinText,
-          targetRole,
           ...(sanitizedUrl ? { linkedinUrl: sanitizedUrl } : {}),
         }),
       });
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        const detail = typeof errorData?.detail === "string" ? errorData.detail : "Falha ao otimizar LinkedIn.";
+        addLog("warn", detail);
+        return;
+      }
       const data: LinkedInAnalysis = await response.json();
       setLinkedinReport(data);
       addLog("success", `Otimização de LinkedIn concluída com sucesso. Força do perfil: ${data.score}/100.`);
@@ -330,16 +324,29 @@ function DashboardApp() {
 
   // 3. Search and Score Jobs
   const handleSearchJobs = async () => {
-    if (!targetRole.trim()) return;
+    if (!jobQuery.trim()) {
+      addLog("warn", "Defina termos reais de busca antes de acionar o conector de vagas.");
+      return;
+    }
+    if (!jobsAvailable) {
+      addLog("warn", "Fonte de vagas não configurada. Configure um conector antes de continuar.");
+      return;
+    }
     setIsSearchingJobs(true);
-    addLog("info", `Buscador de vagas varrendo ecossistemas parceiros por: "${targetRole}"`);
+    addLog("info", `Buscador de vagas acionado com integrações oficiais. Termos: "${jobQuery}"`);
 
     try {
-      const response = await apiFetch("/api/gemini/search-jobs", {
+      const response = await apiFetch("/api/azure/search-jobs", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ targetRole, resumeText }),
+        body: JSON.stringify({ resumeText, targetRole: jobQuery }),
       });
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        const detail = typeof errorData?.detail === "string" ? errorData.detail : "Falha ao buscar vagas.";
+        addLog("warn", detail);
+        return;
+      }
       const data: Job[] = await response.json();
       setJobs(data);
       addLog("success", `Varredura de IA concluída. ${data.length} vagas catalogadas e classificadas com compatibilidade ATS.`);
@@ -361,7 +368,7 @@ function DashboardApp() {
       }
 
       try {
-        const response = await apiFetch("/api/gemini/auto-apply/validate", {
+        const response = await apiFetch("/api/azure/auto-apply/validate", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -412,7 +419,7 @@ function DashboardApp() {
     let registerStatus: any = null;
     if (selectedJob.applicationType === "auto") {
       try {
-        const response = await apiFetch("/api/gemini/auto-apply/register", {
+        const response = await apiFetch("/api/azure/auto-apply/register", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -497,7 +504,7 @@ function DashboardApp() {
       <Header
         currentPlan={currentPlan}
         setPlan={setPlan}
-        geminiConfigured={geminiConfigured}
+        azureConfigured={azureConfigured}
         userEmail="soaresreginaldo@gmail.com"
       />
 
@@ -648,12 +655,11 @@ function DashboardApp() {
               currentPlan={currentPlan}
               resumeText={resumeText}
               setResumeText={setResumeText}
-              targetRole={targetRole}
-              setTargetRole={setTargetRole}
               report={cvReport}
               setReport={setCvReport}
               onOptimize={handleOptimizeCV}
               isOptimizing={isOptimizingCV}
+              atsAvailable={atsAvailable}
             />
           )}
 
@@ -664,23 +670,24 @@ function DashboardApp() {
               setLinkedinUrl={setLinkedinUrl}
               linkedinText={linkedinText}
               setLinkedinText={setLinkedinText}
-              targetRole={targetRole}
               report={linkedinReport}
               onOptimize={handleOptimizeLinkedIn}
               isOptimizing={isOptimizingLinkedIn}
+              linkedinAvailable={linkedinAvailable}
             />
           )}
 
           {activeTab === "jobs" && (
             <JobSearch
               currentPlan={currentPlan}
-              targetRole={targetRole}
-              setTargetRole={setTargetRole}
               jobs={jobs}
               onSearch={handleSearchJobs}
               isSearching={isSearchingJobs}
               onInitiateApply={handleInitiateApply}
               appliedJobIds={applications.map((a) => a.jobId)}
+              jobsAvailable={jobsAvailable}
+              searchQuery={jobQuery}
+              setSearchQuery={setJobQuery}
             />
           )}
         </div>
