@@ -289,7 +289,7 @@ def render_public_landing() -> None:
         """
         🚀 **Em Destaque: Sentinel Career**
 
-        Estamos concluindo a Fase 3 do Sentinel Career, integrando PagSeguro e liberando o fluxo completo de assinatura.
+        Estamos concluindo a Fase 3 do Sentinel Career, operando checkout exclusivo com Mercado Pago e liberando o fluxo completo de assinatura.
         O MVP encontra-se em testes internos com squads multidisciplinares, garantindo jornada de onboarding inteligente,
         análises ATS avançadas e motores de recomendação operando em ambiente de observabilidade total.
         """
@@ -370,7 +370,7 @@ def render_public_landing() -> None:
             - Mecanismos de auto-escalabilidade para workloads sensíveis.
 
             **Integrações**
-            - Conectores nativos com Azure, AWS, PagSeguro, LinkedIn e CRMs corporativos.
+            - Conectores nativos com Azure, AWS, Mercado Pago, LinkedIn e CRMs corporativos.
             - Pipelines de dados estruturados e semi-estruturados com sincronização contínua.
 
             **Arquitetura**
