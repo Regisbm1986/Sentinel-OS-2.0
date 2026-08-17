@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import json
 
-from products.sentinel_career.backend.ats.analyzer import analyze_resume
-from products.sentinel_career.backend.ats.pdf_reader import extract_text_from_pdf
+from backend.ats.analyzer import analyze_resume
+from backend.ats.pdf_reader import extract_text_from_pdf
 
 
 def _build_pdf_bytes(text: str) -> bytes:
@@ -75,7 +75,7 @@ def test_pdf_resume_analysis(tmp_path, monkeypatch):
             }
         )
 
-    monkeypatch.setattr("products.sentinel_career.backend.ats.analyzer.ask_gpt", _fake_ask_gpt)
+    monkeypatch.setattr("backend.ats.analyzer.ask_gpt", _fake_ask_gpt)
 
     result = analyze_resume(extracted_text)
 

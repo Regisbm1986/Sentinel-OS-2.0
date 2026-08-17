@@ -6,8 +6,8 @@ import os
 import time
 from typing import Any, Dict, Optional
 
-from products.sentinel_career.backend.auth.exceptions import InvalidCredentials
-from products.sentinel_career.backend.auth.models import User
+from backend.auth.exceptions import InvalidCredentials
+from backend.auth.models import User
 
 _ALGORITHM = "HS256"
 

@@ -1,6 +1,6 @@
 from typing import List
 
-from products.sentinel_career.backend.database.models import HistoryRecord
+from backend.database.models import HistoryRecord
 
 class HistoryEngine:
     def __init__(self, repository):

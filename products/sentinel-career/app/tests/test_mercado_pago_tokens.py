@@ -1,4 +1,4 @@
-from products.sentinel_career.backend.app.services.mercado_pago import (
+from backend.app.services.mercado_pago import (
     AccessTokenStatus,
     sanitize_access_token,
 )

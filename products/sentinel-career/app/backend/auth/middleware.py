@@ -1,5 +1,5 @@
-from products.sentinel_career.backend.auth.jwt_manager import validate_token
-from products.sentinel_career.backend.auth.exceptions import AuthError
+from backend.auth.jwt_manager import validate_token
+from backend.auth.exceptions import AuthError
 
 def require_auth(token: str):
     try:

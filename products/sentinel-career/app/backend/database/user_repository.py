@@ -8,7 +8,7 @@ import psycopg
 from psycopg import sql
 from psycopg.errors import UniqueViolation
 
-from products.sentinel_career.backend.auth.models import User
+from backend.auth.models import User
 
 _USERS_TABLE = "sentinel_users"
 _SCHEMA_CREATED = False

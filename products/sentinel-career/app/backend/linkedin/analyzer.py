@@ -1,6 +1,6 @@
 # Copied from Sentinel OS backend/linkedin/analyzer.py
-from products.sentinel_career.backend.linkedin.models import LinkedInProfile
-from products.sentinel_career.backend.linkedin.scoring import (
+from backend.linkedin.models import LinkedInProfile
+from backend.linkedin.scoring import (
     score_headline,
     score_about,
     score_experience,
@@ -11,13 +11,13 @@ from products.sentinel_career.backend.linkedin.scoring import (
     estimate_interview_gain,
     keyword_density,
 )
-from products.sentinel_career.backend.linkedin.recommendations import get_recommendations
-from products.sentinel_career.backend.linkedin.exceptions import (
+from backend.linkedin.recommendations import get_recommendations
+from backend.linkedin.exceptions import (
     LinkedInValidationError,
     LinkedInParseError,
     LinkedInScoringError,
 )
-from products.sentinel_career.backend.linkedin.validator import parse_profile, validate_schema
+from backend.linkedin.validator import parse_profile, validate_schema
 
 LINKEDIN_KEYWORDS = [
     "python", "machine learning", "data", "cloud", "api", "security", "strategy", "leadership"

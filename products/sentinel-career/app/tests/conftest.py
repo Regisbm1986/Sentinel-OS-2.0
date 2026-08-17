@@ -43,7 +43,7 @@ def azure_openai_client() -> Iterator["AzureOpenAI"]:
     if not _has_azure_openai_config():
         pytest.skip("Azure OpenAI credentials not configured")
 
-    from products.sentinel_career.backend.gpt.client import get_azure_openai_client
+    from backend.gpt.client import get_azure_openai_client
 
     yield get_azure_openai_client()
 
@@ -53,14 +53,14 @@ def azure_openai_deployment() -> str:
     if not _has_azure_openai_config():
         pytest.skip("Azure OpenAI credentials not configured")
 
-    from products.sentinel_career.backend.gpt.client import get_default_deployment
+    from backend.gpt.client import get_default_deployment
 
     return get_default_deployment()
 
 
 @pytest.fixture()
 def sample_resume_text() -> str:
-    from products.sentinel_career.backend.ats.pdf_reader import extract_text_from_pdf
+    from backend.ats.pdf_reader import extract_text_from_pdf
 
     candidates = [
         ROOT_DIR / "data" / "curriculo.pdf",

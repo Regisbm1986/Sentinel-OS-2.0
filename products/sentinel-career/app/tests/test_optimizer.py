@@ -1,4 +1,4 @@
-from products.sentinel_career.backend.ats.optimizer import optimize_resume
+from backend.ats.optimizer import optimize_resume
 
 
 def test_optimize_resume_returns_text(monkeypatch):
@@ -12,7 +12,7 @@ def test_optimize_resume_returns_text(monkeypatch):
             "- Inclua métricas de produtividade alcançadas"
         )
 
-    monkeypatch.setattr("products.sentinel_career.backend.ats.optimizer.ask_gpt", _fake_ask_gpt)
+    monkeypatch.setattr("backend.ats.optimizer.ask_gpt", _fake_ask_gpt)
 
     resume_text = "Resumo original com experiência em suporte técnico"
     target_role = "Analista de Suporte Técnico Microsoft 365"

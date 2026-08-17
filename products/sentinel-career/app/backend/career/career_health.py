@@ -1,13 +1,13 @@
 import math
 
-from products.sentinel_career.backend.career.metrics import (
+from backend.career.metrics import (
     CAREER_WEIGHTS,
     calc_keywords_coverage,
     resume_quality,
 )
-from products.sentinel_career.backend.career.scoring import weighted_score
-from products.sentinel_career.backend.career.recommendations import recommend
-from products.sentinel_career.backend.career.models import CareerHealthResult
+from backend.career.scoring import weighted_score
+from backend.career.recommendations import recommend
+from backend.career.models import CareerHealthResult
 
 def calculate_career_health(ats_result):
     """

@@ -1,6 +1,6 @@
-from products.sentinel_career.backend.gpt.client import ask_gpt
-from products.sentinel_career.backend.ats.prompts import ATS_PROMPT
-from products.sentinel_career.backend.gpt.json_parser import parse_gpt_json
+from backend.gpt.client import ask_gpt
+from backend.ats.prompts import ATS_PROMPT
+from backend.gpt.json_parser import parse_gpt_json
 
 
 def analyze_resume(resume_text):

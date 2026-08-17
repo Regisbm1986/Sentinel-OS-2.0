@@ -1,8 +1,8 @@
 from fastapi.testclient import TestClient
 
-from products.sentinel_career.backend.app import main as main_module
-from products.sentinel_career.backend.app.main import app
-from products.sentinel_career.backend.auth.auth import USERS_DB, SESSIONS, REFRESH_TOKENS
+from backend.app import main as main_module
+from backend.app.main import app
+from backend.auth.auth import USERS_DB, SESSIONS, REFRESH_TOKENS
 
 
 def test_root_route_serves_public_homepage():

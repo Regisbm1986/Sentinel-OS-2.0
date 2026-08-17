@@ -1,5 +1,5 @@
 import pytest
-from products.sentinel_career.backend.career.career_health import calculate_career_health
+from backend.career.career_health import calculate_career_health
 
 
 def test_career_score_ready():

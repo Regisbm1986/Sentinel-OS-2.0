@@ -9,18 +9,18 @@ from datetime import datetime, timezone
 
 from psycopg.errors import UniqueViolation
 
-from products.sentinel_career.backend.auth.models import User, UserPlan
-from products.sentinel_career.backend.auth.exceptions import (
+from backend.auth.models import User, UserPlan
+from backend.auth.exceptions import (
     UserExistsError,
     InvalidCredentials,
     InactiveUserError,
 )
-from products.sentinel_career.backend.auth.validators import validate_email
-from products.sentinel_career.backend.auth.jwt_manager import (
+from backend.auth.validators import validate_email
+from backend.auth.jwt_manager import (
     create_access_token,
     create_refresh_token,
 )
-from products.sentinel_career.backend.database.user_repository import (
+from backend.database.user_repository import (
     create_user,
     get_user_by_email,
     get_user_by_id,

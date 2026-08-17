@@ -1,7 +1,7 @@
 import json
 from pathlib import Path
 
-from products.sentinel_career.backend.database.exceptions import StorageError
+from backend.database.exceptions import StorageError
 
 class JSONStorage:
     def __init__(self, file_path="history.json"):

@@ -2,7 +2,7 @@
 import json
 from typing import Any, Dict
 
-from products.sentinel_career.backend.jobs.exceptions import JobValidationError, JobParseError
+from backend.jobs.exceptions import JobValidationError, JobParseError
 
 REQUIRED_KEYS = [
     "ats_result",

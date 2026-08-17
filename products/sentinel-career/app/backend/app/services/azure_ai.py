@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from typing import Any, Dict, List, Optional
 
-from products.sentinel_career.backend.gpt.client import (
+from backend.gpt.client import (
     get_azure_openai_client,
     get_default_deployment,
 )

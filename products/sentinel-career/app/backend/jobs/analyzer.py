@@ -1,21 +1,21 @@
 # Copied from Sentinel OS backend/jobs/analyzer.py
-from products.sentinel_career.backend.jobs.models import JobMatch
-from products.sentinel_career.backend.jobs.scoring import (
+from backend.jobs.models import JobMatch
+from backend.jobs.scoring import (
     job_compatibility,
     estimate_interview,
     missing_skills,
 )
-from products.sentinel_career.backend.jobs.recommendations import (
+from backend.jobs.recommendations import (
     get_career_direction,
     priority_skills,
     market_summary,
 )
-from products.sentinel_career.backend.jobs.exceptions import (
+from backend.jobs.exceptions import (
     JobParseError,
     JobValidationError,
     JobScoringError,
 )
-from products.sentinel_career.backend.jobs.validator import parse_input, validate_schema
+from backend.jobs.validator import parse_input, validate_schema
 
 # Vagas base de exemplo (mock)
 JOBS = [

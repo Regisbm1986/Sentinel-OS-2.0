@@ -3,7 +3,7 @@ import pytest
 import sys
 if __name__ == "__main__":
     import pytest; raise SystemExit(pytest.main([__file__]))
-from products.sentinel_career.backend.jobs.analyzer import analyze_jobs
+from backend.jobs.analyzer import analyze_jobs
 import json
 
 def valid_input():

@@ -1,8 +1,8 @@
 import uuid
 
-from products.sentinel_career.backend.database.storage import JSONStorage
-from products.sentinel_career.backend.database.exceptions import RecordNotFoundError
-from products.sentinel_career.backend.database.models import HistoryRecord
+from backend.database.storage import JSONStorage
+from backend.database.exceptions import RecordNotFoundError
+from backend.database.models import HistoryRecord
 
 class HistoryRepository:
     def __init__(self, storage=None):

@@ -1,4 +1,4 @@
-from products.sentinel_career.backend.recruiter.analyzer import analyze_profile
+from backend.recruiter.analyzer import analyze_profile
 
 
 def test_recruiter_profile_analysis_returns_text():

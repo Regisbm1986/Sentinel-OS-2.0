@@ -12,12 +12,12 @@ from zipfile import ZipFile, BadZipFile
 
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 
-from products.sentinel_career.backend.app.services.oauth_providers import (
+from backend.app.services.oauth_providers import (
     OAuthExchangeError,
     OAuthUser,
     google_oauth_client,
 )
-from products.sentinel_career.backend.app.services.oauth_state import (
+from backend.app.services.oauth_state import (
     OAuthStateData,
     OAuthStateResult,
     oauth_state_store,
@@ -32,18 +32,18 @@ from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, ConfigDict, Field
 from xml.etree import ElementTree as ET
 
-from products.sentinel_career.backend.app.api.career_health import calculate_career_health
-from products.sentinel_career.backend.app.services.azure_ai import (
+from backend.app.api.career_health import calculate_career_health
+from backend.app.services.azure_ai import (
     AzureAIError,
     analyze_linkedin_profile,
     generate_cv_analysis,
     search_jobs_suggestions,
 )
-from products.sentinel_career.backend.linkedin.validator import (
+from backend.linkedin.validator import (
     extract_linkedin_handle,
     normalize_linkedin_url,
 )
-from products.sentinel_career.backend.app.services.mercado_pago import (
+from backend.app.services.mercado_pago import (
     AccessTokenStatus,
     MercadoPagoError,
     MercadoPagoPayment,
@@ -53,21 +53,21 @@ from products.sentinel_career.backend.app.services.mercado_pago import (
     sanitize_access_token,
     validate_webhook_signature,
 )
-from products.sentinel_career.backend.auth import auth as auth_module
-from products.sentinel_career.backend.auth.auth import login_user, register_user
-from products.sentinel_career.backend.auth.exceptions import (
+from backend.auth import auth as auth_module
+from backend.auth.auth import login_user, register_user
+from backend.auth.exceptions import (
     InvalidCredentials,
     InactiveUserError,
     UserExistsError,
 )
-from products.sentinel_career.backend.database.user_repository import (
+from backend.database.user_repository import (
     get_user_by_email,
     get_user_by_id,
     list_users,
     update_last_login,
     update_user_plan,
 )
-from products.sentinel_career.backend.gpt.client import get_default_deployment, has_azure_openai_credentials
+from backend.gpt.client import get_default_deployment, has_azure_openai_credentials
 
 try:  # Mercado Pago SDK should be available in runtime environment
     import mercadopago  # type: ignore
@@ -108,7 +108,7 @@ MERCADOPAGO_STATE_PATH = DATA_DIR / "mercadopago_webhooks.json"
 
 CAREER_HEALTH_HISTORY_PATHS = [
     PROJECT_ROOT / "career_health_history.json",
-    PROJECT_ROOT / "products" / "sentinel_career" / "data" / "career_health_history.json",
+    PROJECT_ROOT / "products" / "sentinel-career" / "app" / "data" / "career_health_history.json",
 ]
 
 print(f"[ENV] .env carregado de {ENV_PATH}", flush=True)
@@ -415,7 +415,7 @@ DEFAULT_ADMIN_PASSWORD = os.getenv("SENTINEL_ADMIN_PASSWORD")
 DEFAULT_ADMIN_NAME = os.getenv("SENTINEL_ADMIN_NAME")
 DEFAULT_ADMIN_PLAN = os.getenv("SENTINEL_ADMIN_PLAN")
 
-FRONTEND_DIR = PROJECT_ROOT / "products" / "sentinel_career" / "frontend"
+FRONTEND_DIR = PROJECT_ROOT / "products" / "sentinel-career" / "app" / "frontend"
 FRONTEND_DIST_DIR = FRONTEND_DIR / "dist"
 FRONTEND_ASSETS_DIR = FRONTEND_DIST_DIR / "assets"
 FRONTEND_INDEX_FILE = FRONTEND_DIST_DIR / "index.html"

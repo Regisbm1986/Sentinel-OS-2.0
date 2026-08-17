@@ -4,13 +4,13 @@ import sys
 if __name__ == "__main__":
     import pytest; raise SystemExit(pytest.main([__file__]))
 import os
-from products.sentinel_career.backend.database.models import HistoryRecord
-from products.sentinel_career.backend.database.repository import HistoryRepository
-from products.sentinel_career.backend.database.analytics import (
+from backend.database.models import HistoryRecord
+from backend.database.repository import HistoryRepository
+from backend.database.analytics import (
     calculate_trend, calculate_growth, calculate_average, calculate_improvement, calculate_history_summary
 )
-from products.sentinel_career.backend.database.storage import JSONStorage
-from products.sentinel_career.backend.database.exceptions import DatabaseError, RecordNotFoundError
+from backend.database.storage import JSONStorage
+from backend.database.exceptions import DatabaseError, RecordNotFoundError
 
 TEST_JSON = 'test_history.json'
 

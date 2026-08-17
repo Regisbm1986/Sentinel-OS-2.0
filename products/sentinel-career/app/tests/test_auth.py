@@ -3,7 +3,7 @@ import pytest
 import sys
 if __name__ == "__main__":
     import pytest; raise SystemExit(pytest.main([__file__]))
-from products.sentinel_career.backend.auth.auth import (
+from backend.auth.auth import (
     register_user,
     login_user,
     logout_user,
@@ -14,10 +14,10 @@ from products.sentinel_career.backend.auth.auth import (
     SESSIONS,
     REFRESH_TOKENS,
 )
-from products.sentinel_career.backend.auth.jwt_manager import create_access_token, validate_token, create_refresh_token
-from products.sentinel_career.backend.auth.permissions import check_permission
-from products.sentinel_career.backend.auth.models import UserPlan, User
-from products.sentinel_career.backend.auth.exceptions import InvalidCredentials, UserExistsError, AuthError, PermissionDenied
+from backend.auth.jwt_manager import create_access_token, validate_token, create_refresh_token
+from backend.auth.permissions import check_permission
+from backend.auth.models import UserPlan, User
+from backend.auth.exceptions import InvalidCredentials, UserExistsError, AuthError, PermissionDenied
 
 def setup_user():
     USERS_DB.clear()

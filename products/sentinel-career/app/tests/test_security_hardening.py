@@ -8,11 +8,11 @@ import pytest
 from fastapi.testclient import TestClient
 
 os.environ.setdefault("JWT_SECRET", "test-secret-key")
-from products.sentinel_career.backend.app import main as app_module
-from products.sentinel_career.backend.auth import auth as auth_module
-from products.sentinel_career.backend.auth.exceptions import InvalidCredentials
-from products.sentinel_career.backend.auth.jwt_manager import create_access_token, validate_token
-from products.sentinel_career.backend.auth.models import User
+from backend.app import main as app_module
+from backend.auth import auth as auth_module
+from backend.auth.exceptions import InvalidCredentials
+from backend.auth.jwt_manager import create_access_token, validate_token
+from backend.auth.models import User
 
 
 client = TestClient(app_module.app)
@@ -56,7 +56,7 @@ def test_password_verify_legacy_hash():
 
 
 def test_jwt_requires_secret(monkeypatch):
-    import products.sentinel_career.backend.auth.jwt_manager as jwt_module
+    import backend.auth.jwt_manager as jwt_module
 
     monkeypatch.delenv("JWT_SECRET", raising=False)
     monkeypatch.delenv("SENTINEL_JWT_SECRET", raising=False)
@@ -137,7 +137,7 @@ def test_session_cookie_flags_secure():
 
 def test_session_cookie_insecure_flag_toggle(monkeypatch):
     monkeypatch.setenv("SENTINEL_SESSION_COOKIE_SECURE", "0")
-    import products.sentinel_career.backend.app.main as main_module
+    import backend.app.main as main_module
 
     importlib.reload(main_module)
 

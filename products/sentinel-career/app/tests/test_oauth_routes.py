@@ -12,8 +12,8 @@ os.environ["LINKEDIN_OAUTH_CLIENT_ID"] = "valid-linkedin-client"
 os.environ["LINKEDIN_CLIENT_SECRET"] = "valid-linkedin-secret"
 os.environ.setdefault("SENTINEL_CANONICAL_URL", "https://career.sentinel-os.ia.br")
 
-from products.sentinel_career.backend.app import main as app_module
-from products.sentinel_career.backend.app.services.oauth_providers import OAuthUser
+from backend.app import main as app_module
+from backend.app.services.oauth_providers import OAuthUser
 
 
 @pytest.fixture(autouse=True)

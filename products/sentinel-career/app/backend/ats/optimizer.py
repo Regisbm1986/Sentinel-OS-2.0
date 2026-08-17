@@ -1,4 +1,4 @@
-from products.sentinel_career.backend.gpt.client import ask_gpt
+from backend.gpt.client import ask_gpt
 
 def optimize_resume(resume_text, target_role):
 

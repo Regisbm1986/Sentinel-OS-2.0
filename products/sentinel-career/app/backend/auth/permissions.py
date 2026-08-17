@@ -1,5 +1,5 @@
-from products.sentinel_career.backend.auth.models import UserPlan
-from products.sentinel_career.backend.auth.exceptions import PermissionDenied
+from backend.auth.models import UserPlan
+from backend.auth.exceptions import PermissionDenied
 
 PLANS_PERMISSIONS = {
     'FREE':    {'ATS'},

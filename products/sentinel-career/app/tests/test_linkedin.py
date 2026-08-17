@@ -2,7 +2,7 @@ import json
 
 import pytest
 
-from products.sentinel_career.backend.linkedin.analyzer import analyze_profile
+from backend.linkedin.analyzer import analyze_profile
 
 
 def valid_profile_json():

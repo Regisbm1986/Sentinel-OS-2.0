@@ -3,7 +3,7 @@ import json
 import re
 from typing import Any, Dict, Optional
 
-from products.sentinel_career.backend.linkedin.exceptions import LinkedInValidationError, LinkedInParseError
+from backend.linkedin.exceptions import LinkedInValidationError, LinkedInParseError
 
 # Reconhece URLs de perfil pessoal do LinkedIn em variações comuns:
 #   linkedin.com/in/usuario

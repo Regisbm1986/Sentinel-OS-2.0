@@ -8,9 +8,9 @@ from types import SimpleNamespace
 import pytest
 from fastapi.testclient import TestClient
 
-from products.sentinel_career.backend.app import main as main_module
-from products.sentinel_career.backend.app.main import app
-from products.sentinel_career.backend.app.services.mercado_pago import MercadoPagoPayment
+from backend.app import main as main_module
+from backend.app.main import app
+from backend.app.services.mercado_pago import MercadoPagoPayment
 
 
 @pytest.fixture

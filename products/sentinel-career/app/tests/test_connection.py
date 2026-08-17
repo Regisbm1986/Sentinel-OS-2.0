@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
-from products.sentinel_career.backend.gpt.client import get_azure_openai_client, get_default_deployment
+from backend.gpt.client import get_azure_openai_client, get_default_deployment
 
 
 def test_connection_returns_success_signal(monkeypatch):
@@ -22,10 +22,10 @@ def test_connection_returns_success_signal(monkeypatch):
 
         return SimpleNamespace(responses=_FakeResponses())
 
-    monkeypatch.setattr("products.sentinel_career.backend.gpt.client._client", None, raising=False)
-    monkeypatch.setattr("products.sentinel_career.backend.gpt.client._deployment_name", None, raising=False)
-    monkeypatch.setattr("products.sentinel_career.backend.gpt.client.load_dotenv", lambda *_, **__: None)
-    monkeypatch.setattr("products.sentinel_career.backend.gpt.client.AzureOpenAI", _fake_azure_openai)
+    monkeypatch.setattr("backend.gpt.client._client", None, raising=False)
+    monkeypatch.setattr("backend.gpt.client._deployment_name", None, raising=False)
+    monkeypatch.setattr("backend.gpt.client.load_dotenv", lambda *_, **__: None)
+    monkeypatch.setattr("backend.gpt.client.AzureOpenAI", _fake_azure_openai)
 
     client = get_azure_openai_client()
     deployment = get_default_deployment()

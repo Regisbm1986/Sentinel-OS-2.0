@@ -1,4 +1,4 @@
-from products.sentinel_career.backend.ats.analyzer import analyze_resume
+from backend.ats.analyzer import analyze_resume
 
 
 def test_analyze_resume_returns_json_like_dict():
