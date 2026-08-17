@@ -396,6 +396,12 @@ templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 
 ADMIN_PAGE_TEMPLATES: dict[str, str] = {
     "dashboard": "admin/dashboard.html",
+    "users": "admin/users.html",
+    "payments": "admin/payments.html",
+    "analytics": "admin/analytics.html",
+    "logs": "admin/logs.html",
+    "support": "admin/support.html",
+    "settings": "admin/settings.html",
 }
 
 GOOGLE_OAUTH_AUTHORIZE_URL = "https://accounts.google.com/o/oauth2/v2/auth"

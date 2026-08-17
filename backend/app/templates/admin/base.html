@@ -38,9 +38,57 @@
 <body class="admin-shell text-slate-100 min-h-screen" data-page="{{ current_page }}">
   <div class="flex min-h-screen">
     <aside class="hidden lg:flex lg:w-72 xl:w-80 flex-col border-r border-[#1e293b] bg-[#050b19]/95">
-      <div class="px-8 pt-10 pb-8 flex flex-col gap-4">
+      <div class="px-8 pt-10 pb-6 flex items-center gap-3">
         <img src="{{ url_for('static', path='images/logo-career-horizontal.png') }}" alt="Sentinel Career" class="h-12 w-auto">
-        <p class="text-sm text-slate-300">Visão operacional da homologação. Apenas dados reais ou mensuráveis são exibidos.</p>
+      </div>
+      <nav class="mt-4 flex-1 px-4 space-y-1">
+        <a href="/admin/dashboard" class="nav-link flex items-center gap-3 px-4 py-3 text-slate-50 bg-cyan-500/20 border border-cyan-400/40 hover:text-slate-950 hover:bg-cyan-400/40">
+          <span class="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-white/5">🚀</span>
+          Voltar ao App
+        </a>
+        <a href="/" class="nav-link flex items-center gap-3 px-4 py-3 text-slate-300">
+          <span class="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-white/5">🏠</span>
+          Landing Page
+        </a>
+        <a href="/admin/dashboard" class="nav-link flex items-center gap-3 px-4 py-3 text-slate-300" data-active="dashboard">
+          <span class="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-white/5 border border-white/10">
+            <img src="{{ url_for('static', path='images/logo-career-icon.png') }}" alt="Dashboard" class="h-6 w-6">
+          </span>
+          Painel
+        </a>
+        <a href="/admin/users" class="nav-link flex items-center gap-3 px-4 py-3 text-slate-300" data-active="users">
+          <span class="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-white/5">👥</span>
+          Usuários
+        </a>
+        <a href="/admin/payments" class="nav-link flex items-center gap-3 px-4 py-3 text-slate-300" data-active="payments">
+          <span class="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-white/5">💳</span>
+          Pagamentos
+        </a>
+        <a href="/admin/analytics" class="nav-link flex items-center gap-3 px-4 py-3 text-slate-300" data-active="analytics">
+          <span class="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-white/5">📈</span>
+          Analytics
+        </a>
+        <a href="/admin/logs" class="nav-link flex items-center gap-3 px-4 py-3 text-slate-300" data-active="logs">
+          <span class="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-white/5">🧾</span>
+          Logs
+        </a>
+        <a href="/admin/support" class="nav-link flex items-center gap-3 px-4 py-3 text-slate-300" data-active="support">
+          <span class="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-white/5">🎧</span>
+          Suporte
+        </a>
+        <a href="/admin/settings" class="nav-link flex items-center gap-3 px-4 py-3 text-slate-300" data-active="settings">
+          <span class="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-white/5">⚙️</span>
+          Configurações
+        </a>
+        <a href="/api/auth/logout" class="nav-link flex items-center gap-3 px-4 py-3 text-rose-300">
+          <span class="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-white/5">⏻</span>
+          Encerrar sessão
+        </a>
+      </nav>
+      <div class="px-6 pt-6 pb-10 border-t border-[#1e293b]">
+        <div class="rounded-2xl border border-[#1e293b] bg-[#0b1628]/70 p-4">
+          <p class="text-sm text-slate-300">Layout Neon Cyber — Sprint 2 • Dados, SSO e Pagamentos centralizados.</p>
+        </div>
       </div>
     </aside>
 
