@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - monorepo-migration # teste temporario do cutover Fase 8 - remover depois
   pull_request:
     types: [opened, synchronize, reopened, closed]
     branches:
