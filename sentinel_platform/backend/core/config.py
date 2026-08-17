@@ -9,9 +9,21 @@ PROJECT_ROOT = Path(
     )
 )
 
-API_ROUTES_DIR = PROJECT_ROOT / "backend" / "api" / "routes"
-API_SCHEMAS_DIR = PROJECT_ROOT / "backend" / "api" / "schemas"
-MODULES_DIR = PROJECT_ROOT / "backend" / "modules"
+# O produto Sentinel OS (api/, modules/, platform/, dashboard/, database/) vive em
+# products/sentinel-os/, um diretorio irmao de sentinel_platform/ (que contem so o
+# nucleo generico: agents/, telemetry/, core/). Isso permite que SENTINEL_OS_ROOT
+# continue apontando para o nucleo (usado por AGENT_TASKS_DIR) sem quebrar os
+# caminhos especificos do produto.
+SENTINEL_OS_PRODUCT_ROOT = Path(
+    os.getenv(
+        "SENTINEL_OS_PRODUCT_ROOT",
+        PROJECT_ROOT.parent / "products" / "sentinel-os"
+    )
+)
+
+API_ROUTES_DIR = SENTINEL_OS_PRODUCT_ROOT / "backend" / "api" / "routes"
+API_SCHEMAS_DIR = SENTINEL_OS_PRODUCT_ROOT / "backend" / "api" / "schemas"
+MODULES_DIR = SENTINEL_OS_PRODUCT_ROOT / "backend" / "modules"
 AGENT_TASKS_DIR = PROJECT_ROOT / "backend" / "agents" / "tasks"
 
 PYTHON_BIN = Path(

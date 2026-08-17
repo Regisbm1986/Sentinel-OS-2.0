@@ -18,5 +18,5 @@
     "{'type': 'create_file', 'path': 'backend/api/routes/setoolkit.py', 'content': 'from fastapi import APIRouter\\n\\nrouter = APIRouter()\\n\\n@router.get(\"/\")\\ndef health():\\n    return {\"module\": \"setoolkit\", \"status\": \"ok\"}\\n', 'goal': \"Create API route for module 'setoolkit' in backend/api/routes/setoolkit.py\"}": "completed",
     "{'type': 'create_file', 'path': 'backend/api/routes/demo.py', 'content': \"print('demo')\", 'goal': 'Create demo route'}": "completed",
     "{'type': 'command', 'command': 'false', 'goal': 'Run failing command'}": "failed",
-    "{'type': 'create_file', 'path': 'backend/api/routes/demo.py', 'content': 'from fastapi import APIRouter\\n\\nrouter = APIRouter()\\n\\n@router.get(\"/\")\\ndef health():\\n    return {\"module\": \"demo\", \"status\": \"ok\"}\\n', 'goal': \"Create API route for module 'demo' in backend/api/routes/demo.py\"}": "completed"
+    "{'type': 'create_file', 'path': 'backend/api/routes/demo.py', 'content': 'from fastapi import APIRouter\\n\\nrouter = APIRouter()\\n\\n@router.get(\"/\")\\ndef health():\\n    return {\"module\": \"demo\", \"status\": \"ok\"}\\n', 'goal': \"Create API route for module 'demo' in backend/api/routes/demo.py\"}": "failed"
 }

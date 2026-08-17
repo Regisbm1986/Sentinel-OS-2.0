@@ -640,6 +640,22 @@
                 "worker_id": "worker-1"
             },
             "timestamp": "2026-08-17T01:58:14.980385+00:00"
+        },
+        {
+            "task_id": "{'type': 'create_file', 'path': 'backend/api/routes/demo.py', 'content': \"print('demo')\", 'goal': 'Create demo route'}",
+            "event": {
+                "status": "completed",
+                "worker_id": "worker-1"
+            },
+            "timestamp": "2026-08-17T02:15:02.370206+00:00"
+        },
+        {
+            "task_id": "{'type': 'create_file', 'path': 'backend/api/routes/demo.py', 'content': \"print('demo')\", 'goal': 'Create demo route'}",
+            "event": {
+                "status": "completed",
+                "worker_id": "worker-1"
+            },
+            "timestamp": "2026-08-17T02:16:50.096166+00:00"
         }
     ],
     "{'type': 'command', 'command': 'false', 'goal': 'Run failing command'}": [
@@ -1164,6 +1180,24 @@
                 "error": "boom"
             },
             "timestamp": "2026-08-17T01:58:14.986978+00:00"
+        },
+        {
+            "task_id": "{'type': 'command', 'command': 'false', 'goal': 'Run failing command'}",
+            "event": {
+                "status": "failed",
+                "worker_id": "worker-1",
+                "error": "boom"
+            },
+            "timestamp": "2026-08-17T02:15:02.375950+00:00"
+        },
+        {
+            "task_id": "{'type': 'command', 'command': 'false', 'goal': 'Run failing command'}",
+            "event": {
+                "status": "failed",
+                "worker_id": "worker-1",
+                "error": "boom"
+            },
+            "timestamp": "2026-08-17T02:16:50.102058+00:00"
         }
     ],
     "{'type': 'create_file', 'path': 'backend/api/routes/demo.py', 'content': 'from fastapi import APIRouter\\n\\nrouter = APIRouter()\\n\\n@router.get(\"/\")\\ndef health():\\n    return {\"module\": \"demo\", \"status\": \"ok\"}\\n', 'goal': \"Create API route for module 'demo' in backend/api/routes/demo.py\"}": [
@@ -2141,6 +2175,40 @@
                 "worker_id": "worker-1"
             },
             "timestamp": "2026-08-17T01:58:14.918197+00:00"
+        },
+        {
+            "task_id": "{'type': 'create_file', 'path': 'backend/api/routes/demo.py', 'content': 'from fastapi import APIRouter\\n\\nrouter = APIRouter()\\n\\n@router.get(\"/\")\\ndef health():\\n    return {\"module\": \"demo\", \"status\": \"ok\"}\\n', 'goal': \"Create API route for module 'demo' in backend/api/routes/demo.py\"}",
+            "event": {
+                "status": "completed",
+                "worker_id": "worker-1"
+            },
+            "timestamp": "2026-08-17T02:15:02.348259+00:00"
+        },
+        {
+            "task_id": "{'type': 'create_file', 'path': 'backend/api/routes/demo.py', 'content': 'from fastapi import APIRouter\\n\\nrouter = APIRouter()\\n\\n@router.get(\"/\")\\ndef health():\\n    return {\"module\": \"demo\", \"status\": \"ok\"}\\n', 'goal': \"Create API route for module 'demo' in backend/api/routes/demo.py\"}",
+            "event": {
+                "status": "failed",
+                "worker_id": "worker-1",
+                "error": "file already exists"
+            },
+            "timestamp": "2026-08-17T02:15:36.291156+00:00"
+        },
+        {
+            "task_id": "{'type': 'create_file', 'path': 'backend/api/routes/demo.py', 'content': 'from fastapi import APIRouter\\n\\nrouter = APIRouter()\\n\\n@router.get(\"/\")\\ndef health():\\n    return {\"module\": \"demo\", \"status\": \"ok\"}\\n', 'goal': \"Create API route for module 'demo' in backend/api/routes/demo.py\"}",
+            "event": {
+                "status": "completed",
+                "worker_id": "worker-1"
+            },
+            "timestamp": "2026-08-17T02:16:50.074380+00:00"
+        },
+        {
+            "task_id": "{'type': 'create_file', 'path': 'backend/api/routes/demo.py', 'content': 'from fastapi import APIRouter\\n\\nrouter = APIRouter()\\n\\n@router.get(\"/\")\\ndef health():\\n    return {\"module\": \"demo\", \"status\": \"ok\"}\\n', 'goal': \"Create API route for module 'demo' in backend/api/routes/demo.py\"}",
+            "event": {
+                "status": "failed",
+                "worker_id": "worker-1",
+                "error": "file already exists"
+            },
+            "timestamp": "2026-08-17T02:16:52.270933+00:00"
         }
     ]
 }

@@ -166,9 +166,10 @@
     "{'type': 'create_file', 'path': 'backend/api/routes/demo.py', 'content': 'from fastapi import APIRouter\\n\\nrouter = APIRouter()\\n\\n@router.get(\"/\")\\ndef health():\\n    return {\"module\": \"demo\", \"status\": \"ok\"}\\n', 'goal': \"Create API route for module 'demo' in backend/api/routes/demo.py\"}": {
         "task_id": "{'type': 'create_file', 'path': 'backend/api/routes/demo.py', 'content': 'from fastapi import APIRouter\\n\\nrouter = APIRouter()\\n\\n@router.get(\"/\")\\ndef health():\\n    return {\"module\": \"demo\", \"status\": \"ok\"}\\n', 'goal': \"Create API route for module 'demo' in backend/api/routes/demo.py\"}",
         "result": {
-            "status": "completed",
+            "status": "failed",
             "action": "create_file",
-            "path": "backend/api/routes/demo.py"
+            "path": "backend/api/routes/demo.py",
+            "error": "file already exists"
         }
     }
 }
