@@ -2,4 +2,4 @@
 
 Configuração de infraestrutura (Docker, Nginx, Azure, bancos de dados, Redis, Qdrant).
 
-**Status:** vazio — o conteúdo real hoje vive em `sentinel-os/infrastructure/{docker,nginx,scripts}`. Será trazido via `git subtree` numa fase futura (parte da Fase 7, baixo risco por não ter dependências de runtime ativas). Faltam ainda `azure/`, `databases/`, `redis/`, `qdrant/` — não existem em nenhum repositório hoje.
+**Status:** vazio — checado na Fase 7: `sentinel-os/infrastructure/{docker,nginx,scripts}` existe como estrutura de pastas mas está **completamente vazio** (zero arquivos reais, git nem chega a rastificá-lo por isso). Não há nada de fato para migrar. Faltam `azure/`, `databases/`, `redis/`, `qdrant/` — não existem em nenhum repositório hoje. Esta pasta continua sendo puro esqueleto até haver conteúdo real de infraestrutura documentado em algum dos repositórios.
