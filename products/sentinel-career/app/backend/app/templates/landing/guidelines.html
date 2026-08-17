@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Sentinel Career | Diretrizes da Plataforma</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="{{ url_for('static', path='css/styles.css') }}" />
+    <style>
+      body {margin: 0; min-height: 100vh; font-family: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: radial-gradient(circle at 15% 12%, rgba(58, 247, 198, 0.12), transparent 420px), radial-gradient(circle at 85% -4%, rgba(74, 163, 255, 0.22), transparent 540px), #030712; color: #f7fafc; padding: 72px 24px; display: flex; justify-content: center; align-items: stretch; }
+      .page {width: min(1120px, 100%); background: rgba(8, 15, 28, 0.94); border-radius: 28px; border: 1px solid rgba(58, 247, 198, 0.28); box-shadow: 0 48px 140px -70px rgba(58, 247, 198, 0.6); padding: clamp(32px, 4vw, 56px); display: flex; flex-direction: column; gap: 28px; backdrop-filter: blur(18px); }
+      .badge {display: inline-flex; align-items: center; gap: 10px; padding: 10px 18px; border-radius: 999px; letter-spacing: 0.22em; font-size: 0.72rem; text-transform: uppercase; background: rgba(58, 247, 198, 0.1); color: rgba(148, 237, 255, 0.9); border: 1px solid rgba(58, 247, 198, 0.4); }
+      h1 {margin: 0; font-size: clamp(2.2rem, 4vw, 3.1rem); font-weight: 700; color: #ecfeff; }
+      h2 {margin: 32px 0 16px; font-size: clamp(1.35rem, 3vw, 1.9rem); font-weight: 600; color: #bbf7fe; }
+      p, ul {margin: 0 0 18px; line-height: 1.72; color: rgba(223, 230, 255, 0.86); }
+      ul {padding-left: 22px; }
+      li {margin-bottom: 10px; }
+      a {color: #61f7d2; text-decoration: none; }
+      a:hover {text-decoration: underline; }
+      footer {margin-top: 24px; padding-top: 24px; border-top: 1px solid rgba(148, 163, 184, 0.26); color: rgba(148, 163, 184, 0.7); font-size: 0.88rem; }
+      @media (max-width: 720px) {.page {border-radius: 24px; padding: 28px;}}
+    </style>
+  </head>
+  <body>
+    <main class="page">
+      <span class="badge">Sentinel Career</span>
+      <header>
+        <h1>Diretrizes da Plataforma Sentinel Career</h1>
+        <p>
+          Utilize esta página para entender os controles de segurança, privacidade e operação
+          disponíveis no ambiente Sentinel Career. Ela permanece pública para que times de
+          auditoria avaliem rapidamente a aderência às políticas corporativas antes de solicitar acessos.
+        </p>
+      </header>
+
+      <section>
+        <h2>Visão geral</h2>
+        <ul>
+          <li>A página permanece acessível sem autenticação e não expõe dados sensíveis.</li>
+          <li>As informações refletem o ambiente de homologação; variações específicas podem ser aplicadas em produção.</li>
+          <li>Todos os acessos são monitorados e registrados em trilhas de auditoria segregadas.</li>
+        </ul>
+      </section>
+
+      <section>
+        <h2>Proteção de dados</h2>
+        <p>
+          O armazenamento de currículos e perfis utiliza PostgreSQL dedicado, conexões TLS e chaves gerenciadas.
+          Logs operacionais são anonimados e seguem políticas de retenção definidas pela Sentinel OS. Nenhum arquivo
+          enviado é compartilhado fora do pipeline de análise autorizado.
+        </p>
+      </section>
+
+      <section>
+        <h2>Autenticação e controle de acesso</h2>
+        <p>
+          OAuth federado (Google) é o método preferencial. Credenciais internas utilizam PBKDF2 com 310k
+          iterações, cookies HttpOnly/SameSite=Lax e validação de estado anti-CSRF. Perfis administrativos exigem
+          2FA out-of-band e aprovação do time de segurança.
+        </p>
+      </section>
+
+      <section>
+        <h2>Uploads e processamento de documentos</h2>
+        <p>
+          São aceitos arquivos PDF, DOCX e texto simples até o limite configurado por ambiente. Cada upload passa por
+          verificação de MIME, inspeção estrutural e normalização de texto antes de qualquer análise ou persistência.
+          Conteúdos rejeitados geram alertas operacionais e não são armazenados.
+        </p>
+      </section>
+
+      <section>
+        <h2>Contato</h2>
+        <p>
+          Para dúvidas sobre conformidade, incidentes ou integrações adicionais, acione o time Sentinel OS pelas vias
+          oficiais descritas na política de privacidade ou abra um chamado no suporte corporativo.
+        </p>
+      </section>
+
+      <footer>
+        <small>Última revisão: {{ last_review }} — Sentinel Career © {{ current_year }}</small>
+      </footer>
+    </main>
+  </body>
+</html>

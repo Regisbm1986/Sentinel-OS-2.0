@@ -1,0 +1,215 @@
+{% extends "admin/base.html" %}
+
+{% block title %}Painel Administrativo | Sentinel Career{% endblock %}
+{% block page_id %}dashboard{% endblock %}
+{% block heading %}Painel Administrativo{% endblock %}
+
+{% block status_chips %}
+  {% set integration_states = integrations or {} %}
+  {% set azure_state = integration_states.get('azure_openai', 'not_configured') %}
+  <span class="admin-pill">
+    <span class="h-2 w-2 rounded-full {{ 'bg-emerald-400' if azure_state == 'configured' else 'bg-rose-400' }}"></span>
+    Azure OpenAI {{ 'configurado' if azure_state == 'configured' else 'não configurado' }}
+  </span>
+  <span class="admin-pill">Última verificação {{ app_status.checked_at }}</span>
+{% endblock %}
+
+{% block content %}
+{% set integration_states = integrations or {} %}
+{% set mercadopago = integration_states.get('mercado_pago', {}) %}
+{% set google_state = integration_states.get('google_oauth', 'not_configured') %}
+{% set linkedin_state = integration_states.get('linkedin_oauth', 'not_configured') %}
+
+<section class="grid gap-6 lg:grid-cols-4">
+  <article class="admin-card lg:col-span-2">
+    <h2>Status da aplicação</h2>
+    <p class="metric-value">{{ app_status.status|upper }}</p>
+    <p class="metric-footnote">Backend respondendo ao monitoramento interno em {{ app_status.checked_at }}.</p>
+  </article>
+  <article class="admin-card">
+    <h2>Google OAuth</h2>
+    <p class="metric-value">{{ 'OK' if google_state == 'configured' else 'N/D' }}</p>
+    <p class="metric-footnote">
+      {% if google_state == 'configured' %}
+        Credenciais detectadas.
+      {% else %}
+        Defina GOOGLE_CLIENT_ID para habilitar o login.
+      {% endif %}
+    </p>
+  </article>
+  <article class="admin-card">
+    <h2>LinkedIn OAuth</h2>
+    <p class="metric-value">{{ 'OK' if linkedin_state == 'configured' else 'N/D' }}</p>
+    <p class="metric-footnote">
+      {% if linkedin_state == 'configured' %}
+        Fluxo autorizado para análise de perfis.
+      {% else %}
+        Configure LINKEDIN_CLIENT_ID para liberar a integração.
+      {% endif %}
+    </p>
+  </article>
+</section>
+
+<section class="grid gap-6 lg:grid-cols-2">
+  <article class="admin-surface lg:col-span-2">
+    <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+      <div>
+        <h2 class="admin-section-title">Integração Mercado Pago</h2>
+        <p class="mt-2 text-sm text-slate-300">Consulta direta à API oficial usando MERCADOPAGO_ACCESS_TOKEN.</p>
+      </div>
+    </div>
+    <div class="mt-6 space-y-4">
+      {% if mercadopago.status != 'configured' %}
+        <p class="text-sm text-slate-300">Integração Mercado Pago não configurada.</p>
+      {% elif mercadopago.availability == 'query_failed' %}
+        <p class="text-sm text-rose-300">Não foi possível consultar o Mercado Pago.</p>
+        {% if mercadopago.detail %}
+          <p class="text-xs text-slate-400">{{ mercadopago.detail }}</p>
+        {% endif %}
+      {% elif mercadopago.availability == 'no_data' %}
+        <p class="text-sm text-slate-300">Sem dados retornados pelo Mercado Pago.</p>
+      {% else %}
+        <div class="grid gap-4 md:grid-cols-3">
+          <div class="rounded-2xl border border-[#1e293b] bg-[#070d1c] p-5">
+            <p class="text-xs uppercase tracking-[0.2em] text-slate-400">Total confirmado</p>
+            <p class="mt-3 text-3xl font-semibold text-emerald-300">{{ mercadopago.confirmed_total }}</p>
+            <p class="mt-3 text-xs text-slate-400">{{ revenue_caption }}</p>
+          </div>
+          <div class="rounded-2xl border border-[#1e293b] bg-[#070d1c] p-5">
+            <p class="text-xs uppercase tracking-[0.2em] text-slate-400">Pagamentos aprovados</p>
+            <p class="mt-3 text-3xl font-semibold text-slate-100">{{ mercadopago.confirmed_count }}</p>
+            <p class="mt-3 text-xs text-slate-400">Último pagamento: {{ mercadopago.last_payment or 'Sem dados' }}</p>
+          </div>
+          <div class="rounded-2xl border border-[#1e293b] bg-[#070d1c] p-5">
+            <p class="text-xs uppercase tracking-[0.2em] text-slate-400">Estado</p>
+            <p class="mt-3 text-2xl font-semibold text-emerald-300">Disponível</p>
+            <p class="mt-3 text-xs text-slate-400">Consulta concluída com sucesso.</p>
+          </div>
+        </div>
+        {% if mercadopago_payments %}
+          <div class="mt-6 overflow-x-auto">
+            <table class="admin-table">
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>Status</th>
+                  <th>Valor</th>
+                  <th>Data</th>
+                  <th>Pagador</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for payment in mercadopago_payments %}
+                  <tr>
+                    <td>{{ payment.payment_id }}</td>
+                    <td>{{ payment.status }}</td>
+                    <td>{{ payment.amount }}</td>
+                    <td>{{ payment.created_at }}</td>
+                    <td>{{ payment.payer_email }}</td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        {% endif %}
+      {% endif %}
+    </div>
+  </article>
+</section>
+
+<section class="grid gap-6 lg:grid-cols-2">
+  <article class="admin-surface">
+    <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+      <div>
+        <h2 class="admin-section-title">Usuários recentes</h2>
+        <p class="mt-2 text-sm text-slate-300">Dados reais carregados do repositório de usuários.</p>
+      </div>
+    </div>
+    {% if users %}
+      <div class="mt-6 overflow-x-auto">
+        <table class="admin-table">
+          <thead>
+            <tr>
+              <th>Nome</th>
+              <th>E-mail</th>
+              <th>Plano</th>
+              <th>Último acesso</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for user in users %}
+              <tr>
+                <td>{{ user.name }}</td>
+                <td class="text-slate-400">{{ user.email }}</td>
+                <td>{{ user.plan }}</td>
+                <td>{{ user.last_login }}</td>
+                <td>
+                  <span class="inline-flex items-center gap-2 rounded-full border border-[#1e293b] px-3 py-1 text-xs font-semibold {{ 'text-emerald-300' if user.is_active else 'text-rose-300' }}">
+                    {{ 'Ativo' if user.is_active else 'Bloqueado' }}
+                  </span>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <p class="mt-6 text-sm text-slate-400">Sem usuários cadastrados neste momento.</p>
+    {% endif %}
+  </article>
+
+  <article class="admin-surface">
+    <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+      <div>
+        <h2 class="admin-section-title">Logs recentes</h2>
+        <p class="mt-2 text-sm text-slate-300">Últimos registros do arquivo sentinel-career-errors.log.</p>
+      </div>
+    </div>
+    <ul class="mt-6 space-y-4">
+      {% if logs %}
+        {% for log in logs %}
+          <li class="rounded-2xl border border-[#1e293b] bg-black/30 p-5">
+            <p class="text-xs uppercase tracking-[0.2em] text-rose-300">{{ log.severity or 'Indefinido' }}</p>
+            <p class="mt-1 text-sm font-semibold text-slate-100">{{ log.timestamp }}</p>
+            <p class="mt-2 text-sm text-slate-300">{{ log.message }}</p>
+          </li>
+        {% endfor %}
+      {% else %}
+        <li class="rounded-2xl border border-dashed border-[#1e293b] bg-black/20 px-6 py-8 text-sm text-slate-400">Nenhum log crítico encontrado.</li>
+      {% endif %}
+    </ul>
+  </article>
+</section>
+
+<section class="admin-surface">
+  <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+    <div>
+      <h2 class="admin-section-title">Career Health</h2>
+      <p class="mt-2 text-sm text-slate-300">Exibe apenas cálculos reais executados pelo endpoint oficial.</p>
+    </div>
+  </div>
+  {% if career_health_history %}
+    <ul class="mt-6 space-y-4">
+      {% for entry in career_health_history %}
+        <li class="rounded-2xl border border-[#1e293b] bg-black/25 p-5">
+          <p class="text-xs uppercase tracking-[0.2em] text-cyan-300">{{ entry.status or 'Sem status' }}</p>
+          <p class="mt-1 text-sm font-semibold text-slate-100">{{ entry.timestamp or entry.created_at or 'Sem horário' }}</p>
+          <p class="mt-2 text-sm text-slate-300">Score: {{ entry.career_health or entry.score or 'Sem dados' }}</p>
+          {% if entry.recommendations %}
+            <ul class="mt-2 list-disc pl-5 text-sm text-slate-200">
+              {% for item in entry.recommendations %}
+                <li>{{ item }}</li>
+              {% endfor %}
+            </ul>
+          {% endif %}
+        </li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <p class="mt-6 text-sm text-slate-400">Sem dados disponíveis. Novos cálculos aparecerão aqui automaticamente.</p>
+  {% endif %}
+</section>
+{% endblock %}
+
+{% block extra_scripts %}{% endblock %}

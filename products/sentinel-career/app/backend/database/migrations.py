@@ -1,0 +1,1 @@
+# Placeholder para futuras migrações: SQLite, PostgreSQL, Azure SQL.

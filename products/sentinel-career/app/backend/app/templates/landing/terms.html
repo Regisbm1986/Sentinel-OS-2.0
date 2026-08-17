@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Sentinel Career | Termos de Uso</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="{{ url_for('static', path='css/styles.css') }}" />
+    <style>
+      body {margin: 0; min-height: 100vh; font-family: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: radial-gradient(circle at 10% 8%, rgba(58, 247, 198, 0.12), transparent 400px), radial-gradient(circle at 80% 0%, rgba(74, 163, 255, 0.2), transparent 560px), #030712; color: #f8fafc; padding: 72px 24px; display: flex; justify-content: center; align-items: stretch; }
+      .page {width: min(1100px, 100%); background: rgba(7, 14, 26, 0.94); border-radius: 28px; border: 1px solid rgba(74, 163, 255, 0.26); box-shadow: 0 44px 140px -70px rgba(74, 163, 255, 0.58); padding: clamp(32px, 4vw, 54px); display: flex; flex-direction: column; gap: 28px; backdrop-filter: blur(18px); }
+      .badge {display: inline-flex; align-items: center; gap: 10px; padding: 10px 16px; border-radius: 999px; letter-spacing: 0.22em; font-size: 0.72rem; text-transform: uppercase; background: rgba(74, 163, 255, 0.1); color: rgba(186, 211, 255, 0.88); border: 1px solid rgba(74, 163, 255, 0.42); }
+      h1 {margin: 0; font-size: clamp(2.2rem, 4vw, 3rem); font-weight: 700; color: #ecfeff; }
+      h2 {margin: 32px 0 16px; font-size: clamp(1.35rem, 3vw, 1.9rem); font-weight: 600; color: #c7d2fe; }
+      p, ul {margin: 0 0 18px; line-height: 1.72; color: rgba(223, 230, 255, 0.86); }
+      ul {padding-left: 22px; }
+      li {margin-bottom: 10px; }
+      a {color: #61f7d2; text-decoration: none; }
+      a:hover {text-decoration: underline; }
+      footer {margin-top: 24px; padding-top: 24px; border-top: 1px solid rgba(148, 163, 184, 0.24); color: rgba(148, 163, 184, 0.72); font-size: 0.88rem; }
+      @media (max-width: 720px) {.page {border-radius: 24px; padding: 28px;}}
+    </style>
+  </head>
+  <body>
+    <main class="page">
+      <span class="badge">Sentinel Career</span>
+      <header>
+        <h1>Termos de Uso da Sentinel Career</h1>
+        <p>
+          Estes termos regem o uso dos ambientes de homologação e produção da Sentinel Career.
+          Leia atentamente antes de solicitar credenciais ou iniciar integrações com nossos serviços.
+        </p>
+      </header>
+
+      <section>
+        <h2>Escopo</h2>
+        <p>
+          A Sentinel Career é fornecida como uma solução corporativa para orientação de carreira, análise de
+          currículos e automação de candidaturas. O uso é restrito a equipes autorizadas da Sentinel OS e clientes
+          aprovados mediante contrato.
+        </p>
+      </section>
+
+      <section>
+        <h2>Ambiente de homologação</h2>
+        <p>
+          O ambiente de homologação é isolado de produção. Utilize apenas dados sintéticos ou expurgados, respeite os
+          limites de requisições e reporte qualquer comportamento inesperado. Logs são monitorados continuamente.
+        </p>
+      </section>
+
+      <section>
+        <h2>Uso aceitável</h2>
+        <p>
+          É proibido executar ataques, engenharia reversa ou automações que não façam parte dos testes autorizados.
+          Testes de intrusão exigem aprovação prévia do time de segurança Sentinel OS. Violações podem resultar em
+          suspensão imediata do acesso.
+        </p>
+      </section>
+
+      <section>
+        <h2>Privacidade e dados pessoais</h2>
+        <p>
+          Dados coletados seguem a política de privacidade publicada. Solicitações de acesso, retificação ou exclusão
+          devem ser feitas pelos canais oficiais. Logs e backups são criptografados e armazenados em regiões aprovadas.
+        </p>
+      </section>
+
+      <section>
+        <h2>Suporte e contato</h2>
+        <p>
+          Para suporte técnico ou dúvidas contratuais, contate o time Sentinel OS pelos canais informados na política de
+          privacidade. Incidentes de segurança devem ser reportados imediatamente.
+        </p>
+      </section>
+
+      <footer>
+        <small>Última revisão: {{ last_review }} — Sentinel Career © {{ current_year }}</small>
+      </footer>
+    </main>
+  </body>
+</html>
