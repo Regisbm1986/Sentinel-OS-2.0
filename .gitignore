@@ -18,3 +18,11 @@ dist/
 # Test/cache
 .pytest_cache/
 .coverage
+
+# Estado de execucao gerado em tempo real pelos agentes/testes de
+# orquestracao (nao e codigo de produto) - ver Fase 6 do plano de migracao
+backend/agents/tasks/*.json
+backend/telemetry/*.json
+backend/database/capabilities.json
+backend/api/
+data/
