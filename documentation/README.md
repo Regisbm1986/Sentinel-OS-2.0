@@ -1,5 +1,7 @@
 # documentation/
 
-Documentação consolidada (`architecture/`, `deployment/`, `products/`, `operations/`).
+Documentação consolidada do monorepo.
 
-**Status:** vazio — hoje existem `docs/` e `product-book/` como pastas separadas na raiz de `sentinel-os`/`homolog` (conteúdos diferentes: `docs` é documentação técnica, `product-book` é roadmap/status estratégico). Consolidação planejada para a Fase 7: ambas viram subpastas aqui dentro, sem fundir conteúdo.
+**Status:** `docs/` (documentação técnica: `platform/`, `products/`, `sentinel_operations_dashboard.md`) e `product-book/` (roadmap/status estratégico: `ROADMAP_STATUS.md`, `Sentinel_Master_Roadmap_v2.md`, `CURRENT_STATE.md`) trazidos de `sentinel-os`/`homolog` via `git subtree` (histórico preservado), mantidos como subpastas separadas, sem fundir conteúdo.
+
+Ainda não existem `architecture/`, `deployment/` nem `operations/` como pastas dedicadas — o conteúdo equivalente está disperso dentro de `docs/`.
