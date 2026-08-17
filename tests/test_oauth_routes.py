@@ -109,60 +109,23 @@ def test_google_callback_rejects_invalid_state(client):
     assert "inválido" in response.json()["detail"]
 
 
-def test_linkedin_login_adds_nonce_and_canonical_redirect(client):
-    response = client.get("/api/auth/linkedin/login")
-    payload = response.json()
-
-    authorization_url = payload["authorization_url"]
-    parsed = urlparse(authorization_url)
-    query = parse_qs(parsed.query)
-
-    assert parsed.scheme == "https"
-    assert parsed.netloc == "www.linkedin.com"
-    assert query["redirect_uri"][0] == "https://career.sentinel-os.ia.br/api/auth/linkedin/callback"
-    assert query["state"][0]
-    assert query["nonce"][0]
-    assert "openid" in query["scope"][0]
-
-
-def test_linkedin_callback_reuses_existing_user(client, monkeypatch):
-    existing = app_module.auth_module.register_user("Existing", "linkedin-user@example.com", "pass", plan="PRO")
-
+def test_linkedin_oauth_routes_removed(client):
     login_response = client.get("/api/auth/linkedin/login")
-    state_value, _ = _extract_state_data(login_response.json()["authorization_url"])
-
-    monkeypatch.setattr(
-        app_module.linkedin_oauth_client,
-        "exchange_code",
-        lambda **_: {"access_token": "token-xyz", "id_token": "id-xyz"},
-    )
-    monkeypatch.setattr(
-        app_module.linkedin_oauth_client,
-        "fetch_userinfo",
-        lambda _: {"email": "linkedin-user@example.com", "email_verified": True, "name": "Existing"},
-    )
-    monkeypatch.setattr(
-        app_module.linkedin_oauth_client,
-        "build_user",
-        lambda **_: OAuthUser(
-            provider="linkedin",
-            subject="sub-linkedin",
-            email="linkedin-user@example.com",
-            email_verified=True,
-            name="Existing",
-            picture=None,
-        ),
-    )
-
-    response = client.get(
+    callback_response = client.get(
         "/api/auth/linkedin/callback",
-        params={"code": "auth-code", "state": state_value},
+        params={"code": "auth-code", "state": "irrelevant"},
         follow_redirects=False,
     )
 
-    assert response.status_code == 302
-    assert response.headers["location"] == app_module.DEFAULT_POST_LOGIN_ROUTE
-    assert app_module.auth_module.USERS_DB["linkedin-user@example.com"].id == existing.id
+    assert login_response.status_code == 404
+    assert callback_response.status_code == 404
+
+
+def test_google_oauth_route_remains_available(client):
+    response = client.get("/api/auth/google/login")
+
+    assert response.status_code == 200
+    assert "authorization_url" in response.json()
 
 
 def test_oauth_state_cannot_be_reused(client, monkeypatch):
